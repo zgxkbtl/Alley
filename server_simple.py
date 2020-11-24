@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import json
+import random
 
 class Controller:
     
@@ -51,6 +52,7 @@ class Controller:
             print(e)            
 
 C = Controller()
+S = dict()
 
 async def join_pipe(reader, writer):
     try:
@@ -62,13 +64,15 @@ async def join_pipe(reader, writer):
     finally:
         writer.close()
 
-async def server_pipe(local_reader, local_writer, remote_reader, remote_writer):
+async def server_pipe(serverID, local_reader, local_writer, remote_reader, remote_writer):
     try:
         task_list = [
             asyncio.create_task(join_pipe(remote_reader, local_writer)),
             asyncio.create_task(join_pipe(local_reader, remote_writer)),
         ]
         print('New HTTP connection link ', local_writer.get_extra_info("peername") ,' to ', remote_writer.get_extra_info("peername"))
+        S[serverID].close()
+        S[serverID] = None
         done, pending = await asyncio.wait(task_list)
     except Exception as e:
         # local_writer.close()
@@ -79,16 +83,21 @@ async def handle_http_client(local_reader, local_writer):
     print('Detect new HTTP request from', local_writer.get_extra_info('peername'))
     
     try:
+        serverID = random.randint(1, 114514)
+       
         server = await asyncio.start_server(
-            functools.partial(server_pipe, local_reader, local_writer), '172.17.27.87', ''
+            functools.partial(server_pipe, serverID, local_reader, local_writer), '172.17.27.87', ''
         )
-        print('New proxy port on', server.sockets[0].getsockname())
+        S[serverID] = server
+        print('New proxy port listen on', server.sockets[0].getsockname(), 'ServerID=', serverID)
         addr_port = ('splay.luobotou.org', server.sockets[0].getsockname()[1])
+        
         await C.ControlConnection(C.ControlReader, C.ControlWriter, json.dumps(
             {'CMD':'StartProxy', 'payload': addr_port}
         ).encode())
-        await asyncio.sleep(10)
+        # await asyncio.sleep(10)
         await server.wait_closed()
+        print('serverID=', serverID, 'closed')
         # print(f'New tunnle connection', addr)
         # done, pending = await asyncio.wait(task_list)
     except Exception as e:

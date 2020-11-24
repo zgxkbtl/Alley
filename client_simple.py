@@ -15,7 +15,8 @@ async def join_pipe(reader, writer):
 async def handle_proxy(local_reader, local_writer):
     try:
         remote_reader, remote_writer = await asyncio.open_connection(
-            '127.0.0.1', 3389
+            # '127.0.0.1', 3389
+            'jwzx.cqupt.edu.cn', 80
         )
         
         task_list = [
@@ -35,22 +36,21 @@ class NewController:
         self.ControlReader = reader
         self.ControlWriter = writer
         # asyncio.get_event_loop().add_reader(reader.fd, functools.partial(self.ControlConnection, self.ControlReader, self.ControlWriter))
-        asyncio.create_task(self.ListeningControl(reader, writer))
+        task = asyncio.create_task(self.ListeningControl(reader, writer))
         print('New Tunnel')
+        await asyncio.wait({task})
 
     async def ListeningControl(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        while True:
-            datas = b''
-            try:
+        try:
+            while True:
+                datas = b''
+                
                 if not reader.at_eof():
                     data = await reader.readuntil(separator=b"\xFF\xFF")
                     if not data:
                         break
                     datas += data
-                    print('Recived from Control:', data)
-            except Exception as e:
-                print(e)
-            finally:
+                    # print('Recived from Control:', data)
                 if len(datas) > 0:
                     datas = datas.strip(b"\xFF\xFF")
                     datas = json.loads(datas.decode())
@@ -75,6 +75,12 @@ class NewController:
                         )
                         writer.write(b"\xFF\xFF")
                         await writer.drain()
+        except Exception as e:
+            print(e)
+            return
+        except KeyboardInterrupt as e:
+            return
+                
 
     async def ControlConnection(self, reader, writer, Msg = None):
         if Msg:
@@ -107,7 +113,12 @@ async def main():
     # server = await asyncio.start_server(
     #     handle_proxy, 'localhost', '11451'
     # )
-    await NewController().Run()
+    try:
+        await NewController().Run()
+    except KeyboardInterrupt as e:
+        return
+    except Exception as e:
+        print(e)
     # loop = asyncio.get_event_loop()
     # loop.run_forever()
     # await asyncio.create_task(handle_proxy(myserver_reader, myserver_writer))
