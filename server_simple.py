@@ -108,9 +108,6 @@ async def NewControl(reader : asyncio.StreamReader, writer: asyncio.StreamWriter
         # writer.close()
         
 
-# async def handle_http_client(reader, writer):
-#     pass
-
 async def main():
     server_http = await asyncio.start_server(
         handle_http_client, '172.17.27.87', '8899'
