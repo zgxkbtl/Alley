@@ -97,13 +97,25 @@ async def make_tunnel(message):
 
     await asyncio.wait(tasks_list)
 
+async def run():
+    messages = [
+        {
+            'local_addr':'splay.luobotou.org',
+            'local_port':'5000',
+            'remote_addr':'192.168.3.47',
+            'remote_port':'21354'
+        },
+        {
+            'local_addr':'www.baidu.com',
+            'local_port':'80',
+            'remote_addr':'192.168.3.47',
+            'remote_port':'21355'
+        },
+    ]
+    task_list = [asyncio.create_task(make_tunnel(msg)) for msg in messages]
+    await asyncio.wait(task_list)
+
 def main():
-    message = {
-        'local_addr':'splay.luobotou.org',
-        'local_port':'5000',
-        'remote_addr':'192.168.3.47',
-        'remote_port':'21354'
-    }
-    asyncio.run(make_tunnel(message))
+    asyncio.run(run())
 
 main()
