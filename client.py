@@ -1,13 +1,11 @@
 import asyncio
 from asyncio import tasks
-from asyncio.streams import start_server
 import json
 import logging
-import functools
-from os import read
-from random import randint
 
-SERVER_ADDR = ('192.168.3.47', 9876)
+# Extranet Address
+SERVER_ADDR = ('8.141.175.112', 9876)
+
 SEPARATOR = b'\xFF\xFF'
 TUNNEL_MAP = {}
 
@@ -39,9 +37,10 @@ async def start_proxy(tunnel_info: dict, msg: str):
     local_reader, local_writer = await asyncio.open_connection(tunnel_info['local_addr'], tunnel_info['local_port'])
     
     # make pipe
-    remote_reader, remote_writer = await asyncio.open_connection(tunnel_info['remote_addr'], tunnel_info['remote_port'])
+    remote_reader, remote_writer = await asyncio.open_connection(*SERVER_ADDR)
     # 1. hand shake
     data = {
+        'type': 'PLUG_IN',
         'payload': {
             "server_id": msg.split()[-1]
         }
@@ -100,17 +99,18 @@ async def make_tunnel(message):
 async def run():
     messages = [
         {
+            'type': "CONNECTOR",
             'local_addr':'splay.luobotou.org',
             'local_port':'5000',
-            'remote_addr':'192.168.3.47',
+            'remote_addr':'0.0.0.0',
             'remote_port':'21354'
         },
-        {
-            'local_addr':'www.baidu.com',
-            'local_port':'80',
-            'remote_addr':'192.168.3.47',
-            'remote_port':'21355'
-        },
+        # {
+        #     'local_addr':'www.baidu.com',
+        #     'local_port':'80',
+        #     'remote_addr':'192.168.3.47',
+        #     'remote_port':'21355'
+        # },
     ]
     task_list = [asyncio.create_task(make_tunnel(msg)) for msg in messages]
     await asyncio.wait(task_list)
