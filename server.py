@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import logging
@@ -125,5 +126,16 @@ async def run():
     my_server = await asyncio.start_server(make_tunnel, *SERVER_ADDR)
     await my_server.serve_forever()
 
-asyncio.run(run())
+def main():
+    asyncio.run(run())
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Alley server")
+    parser.add_argument('--host', default='0.0.0.0', help="Server host(ip)")
+    parser.add_argument('--port', default='9876', help="Server port")
+    parser.add_argument('--debug', help="Turn on debug mod", action='store_true')
+    args = parser.parse_args()
+    SERVER_ADDR = (args.host, args.port)
+    logging.info("Alley server listening on {}".format(SERVER_ADDR))
+    main()
 

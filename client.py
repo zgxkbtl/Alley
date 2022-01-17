@@ -1,10 +1,13 @@
+import argparse
+from ast import arg
 import asyncio
 from asyncio import tasks
 import json
 import logging
 
 # Extranet Address
-SERVER_ADDR = ('8.141.175.112', 9876)
+# SERVER_ADDR = ('8.141.175.112', 9876)
+SERVER_ADDR = ('123.57.47.211', 19876)
 
 SEPARATOR = b'\xFF\xFF'
 TUNNEL_MAP = {}
@@ -118,4 +121,13 @@ async def run():
 def main():
     asyncio.run(run())
 
-main()
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Alley client")
+    parser.add_argument('host', help="Server host(ip)")
+    parser.add_argument('port', help="Server port")
+    parser.add_argument('--debug', help="Turn on debug mod", action='store_true')
+    args = parser.parse_args()
+    SERVER_ADDR = (args.host, args.port)
+    print(SERVER_ADDR)
+    main()
