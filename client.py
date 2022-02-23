@@ -12,7 +12,7 @@ SERVER_ADDR = ('123.57.47.211', 19876)
 SEPARATOR = b'\xFF\xFF'
 TUNNEL_MAP = {}
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 def encode_msg(msg):
     if type(msg) == dict:
@@ -66,7 +66,7 @@ async def parse_msg(reader: asyncio.StreamReader, writer, tunnel_info):
         while True:
             data = await reader.readuntil(SEPARATOR)
             data = decode_msg(data)
-            logging.info(data)
+            logging.debug(data)
             if 'start proxy' in data:
                 asyncio.create_task(start_proxy(tunnel_info, data))
 
@@ -130,4 +130,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     SERVER_ADDR = (args.host, args.port)
     print(SERVER_ADDR)
+    if args.debug: logging.basicConfig(level=logging.DEBUG)
     main()
