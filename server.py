@@ -30,7 +30,7 @@ async def join_pipe(reader, writer):
     finally:
         writer.close()
 
-async def make_pipe(pipe_reader: asyncio.StreamReader, pipe_writer: asyncio.StreamWriter, message = dict):
+async def make_pipe(pipe_reader: asyncio.StreamReader, pipe_writer: asyncio.StreamWriter, message : dict):
     # parse msg
     if not message:
         logging.error(f"No pipe make message")

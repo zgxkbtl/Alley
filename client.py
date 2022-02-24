@@ -124,11 +124,12 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Alley client")
-    parser.add_argument('host', help="Server host(ip)")
-    parser.add_argument('port', help="Server port")
+    parser.add_argument('--host', help="Server host(ip)")
+    parser.add_argument('--port', help="Server port")
     parser.add_argument('--debug', help="Turn on debug mod", action='store_true')
     args = parser.parse_args()
-    SERVER_ADDR = (args.host, args.port)
+    if args.host and args.port:
+        SERVER_ADDR = (args.host, args.port)
     print(SERVER_ADDR)
     if args.debug: logging.basicConfig(level=logging.DEBUG)
     main()
