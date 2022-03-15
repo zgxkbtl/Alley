@@ -6,13 +6,13 @@ import json
 import logging
 
 # Extranet Address
-# SERVER_ADDR = ('8.141.175.112', 9876)
-SERVER_ADDR = ('123.57.47.211', 19876)
+SERVER_ADDR = ('8.141.175.112', 9876)
+# SERVER_ADDR = ('123.57.47.211', 19876)
 
 SEPARATOR = b'\xFF\xFF'
 TUNNEL_MAP = {}
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 def encode_msg(msg):
     if type(msg) == dict:
@@ -66,7 +66,15 @@ async def parse_msg(reader: asyncio.StreamReader, writer, tunnel_info):
         while True:
             data = await reader.readuntil(SEPARATOR)
             data = decode_msg(data)
+            if data == 'pong':
+                # TODO: record last pong
+                continue
+
             logging.debug(data)
+            if data == 'ping':
+                writer.write(encode_msg('pong'))
+                await writer.drain()
+            
             if 'start proxy' in data:
                 asyncio.create_task(start_proxy(tunnel_info, data))
 
@@ -78,7 +86,7 @@ async def parse_msg(reader: asyncio.StreamReader, writer, tunnel_info):
 
 async def heart_beat(writer):
     while True:
-        writer.write(encode_msg('heart beat'))
+        writer.write(encode_msg('ping'))
         await writer.drain()
         await asyncio.sleep(10)
 
@@ -103,8 +111,8 @@ async def run():
     messages = [
         {
             'type': "CONNECTOR",
-            'local_addr':'splay.luobotou.org',
-            'local_port':'5000',
+            'local_addr':'127.0.0.1',
+            'local_port':'3389',
             'remote_addr':'0.0.0.0',
             'remote_port':'21354'
         },

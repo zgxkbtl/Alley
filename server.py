@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import functools
+import time
 from random import randint
 
 # Extranet Address
@@ -19,6 +20,38 @@ def encode_msg(msg):
 
 def decode_msg(msg: bytes):
     return msg.strip(SEPARATOR).decode()
+
+
+async def heart_beat(writer, last_heartbeat):
+    while True:
+        if time.time() - last_heartbeat[0] > 20:
+            writer.close()
+            raise asyncio.exceptions.TimeoutError()
+        await asyncio.sleep(10)
+
+
+async def parse_msg(reader: asyncio.StreamReader, writer):
+    try:
+        last_heartbeat = [time.time(), 0]
+        heartbeat_task = asyncio.create_task(heart_beat(writer, last_heartbeat))
+        while True:
+            data = await reader.readuntil(SEPARATOR)
+            data = decode_msg(data)
+            if data == 'pong':
+                # TODO: record last pong
+                continue
+            if data == 'ping':
+                last_heartbeat[0] = time.time()
+                writer.write(encode_msg('pong'))
+                await writer.drain()
+            logging.info(data)
+    except asyncio.IncompleteReadError as e:
+        logging.error(e, exc_info=True)
+    finally:
+        heartbeat_task.cancel()
+        logging.info("Close the connection")
+        writer.close()
+
 
 async def join_pipe(reader, writer):
     try:
@@ -68,9 +101,11 @@ async def make_endpoint(tunnel_server_id,
     server_id = randint(0, 19260817)
     TUNNEL_MAP[server_id] = (endpoint_reader, endpoint_writer)
     
-    tunnel_writer.write(encode_msg(f'start proxy at {server_id}'))
-    await tunnel_writer.drain()
-
+    try:
+        tunnel_writer.write(encode_msg(f'start proxy at {server_id}'))
+        await tunnel_writer.drain()
+    except Exception as e:
+        logging.error(e, exc_info=True)
 
 async def make_endpoint_server(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                                 server_id, message, data):
@@ -79,22 +114,20 @@ async def make_endpoint_server(reader: asyncio.StreamReader, writer: asyncio.Str
         functools.partial(make_endpoint, server_id, reader, writer), message['remote_addr'], message['remote_port'])
     await tunnel_server.start_serving()
     logging.info(f"listening endpoint on : {(message['remote_addr'], message['remote_port'])!r}")
+    # ehco the data if control tunnel succeed
     writer.write(data)
     await writer.drain()
 
-    # hreat_beat
+    # hreat_beat, deal instraction
     try:
-        while True:
-            data = await reader.readuntil(SEPARATOR)
-            data = decode_msg(data)
-            if data == 'heart beat':
-                writer.write(encode_msg(data))
-                await writer.drain()
-            logging.info(data)
-    except asyncio.IncompleteReadError as e:
-        logging.error(e, exc_info=True)
+        tasks_list = [
+            # asyncio.create_task(heart_beat(writer)),
+            asyncio.create_task(parse_msg(reader, writer))
+        ]
+        await asyncio.wait(tasks_list, return_when=asyncio.tasks.FIRST_EXCEPTION)
     finally:
-        logging.info("Close the connection")
+        for t in tasks_list: t.cancel()
+        logging.info("Close the tunnel_server")
         writer.close()
         tunnel_server.close()
 
