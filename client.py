@@ -1,18 +1,18 @@
 import argparse
 from ast import arg
 import asyncio
-from asyncio import tasks
+from asyncio import FIRST_COMPLETED, FIRST_EXCEPTION, tasks
 import json
 import logging
 
 # Extranet Address
-SERVER_ADDR = ('8.141.175.112', 9876)
-# SERVER_ADDR = ('123.57.47.211', 19876)
+SERVER_ADDR = ('', 9876)
 
 SEPARATOR = b'\xFF\xFF'
 TUNNEL_MAP = {}
 
-logging.basicConfig(level=logging.DEBUG)
+fmt='%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s'
+logging.basicConfig(format=fmt, level=logging.DEBUG)
 
 def encode_msg(msg):
     if type(msg) == dict:
@@ -123,8 +123,20 @@ async def run():
         #     'remote_port':'21355'
         # },
     ]
-    task_list = [asyncio.create_task(make_tunnel(msg)) for msg in messages]
-    await asyncio.wait(task_list)
+    task_list = [
+        asyncio.create_task(make_tunnel(messages[i]), name=str(i)) 
+            for i in range(len(messages))]
+    done, pending = await asyncio.wait(task_list, return_when=FIRST_COMPLETED)
+    while True:
+        task_list = [task for task in pending]
+        for task in done:
+            task_id = int(task.get_name())
+            logging.info(f"Retring {task_id}: {messages[task_id]}")
+            task_list.append( 
+                asyncio.create_task(make_tunnel(messages[task_id]), name=str(task_id) ) 
+            )
+        done, pending = await asyncio.wait(task_list, return_when=FIRST_COMPLETED)
+
 
 def main():
     asyncio.run(run())

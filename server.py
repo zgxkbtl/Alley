@@ -110,11 +110,19 @@ async def make_endpoint(tunnel_server_id,
 async def make_endpoint_server(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
                                 server_id, message, data):
     # TODO: try Exception send to client
-    tunnel_server = await asyncio.start_server(
-        functools.partial(make_endpoint, server_id, reader, writer), message['remote_addr'], message['remote_port'])
-    await tunnel_server.start_serving()
-    logging.info(f"listening endpoint on : {(message['remote_addr'], message['remote_port'])!r}")
-    # ehco the data if control tunnel succeed
+    try:
+        tunnel_server = await asyncio.start_server(
+            functools.partial(make_endpoint, server_id, reader, writer), message['remote_addr'], message['remote_port'])
+        await tunnel_server.start_serving()
+        logging.info(f"listening endpoint on : {(message['remote_addr'], message['remote_port'])!r}")
+        # ehco the data if control tunnel succeed
+    except Exception as e:
+        logging.error(e, exc_info=True)
+        writer.write(encode_msg( str(e) )) 
+        writer.drain
+        writer.close()
+        return 
+
     writer.write(data)
     await writer.drain()
 
