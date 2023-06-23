@@ -105,6 +105,7 @@ async def make_endpoint(tunnel_server_id,
         tunnel_writer.write(encode_msg(f'start proxy at {server_id}'))
         await tunnel_writer.drain()
     except Exception as e:
+        del TUNNEL_MAP[server_id]
         logging.error(e, exc_info=True)
 
 async def make_endpoint_server(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
