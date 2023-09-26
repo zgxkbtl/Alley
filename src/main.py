@@ -50,8 +50,8 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
                         line = line.rstrip('\n')
                         if line == 'exit()':
                             break
-                except asyncssh.BreakReceived:
-                    pass
+                except asyncssh.BreakReceived as e:
+                    raise e
                 except asyncssh.TerminalSizeChanged:
                     pass
         except Exception as e:
