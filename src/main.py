@@ -63,8 +63,8 @@ class AlleyServer(asyncssh.SSHServer):
     def validate_password(self, username: str, password: str) -> MaybeAwait[bool]:
         return username == 'guest'
     
-    def connection_requested(self, dest_host: str, dest_port: int, orig_host: str, orig_port: int) -> _NewTCPSession:
-        return super().connection_requested(dest_host, dest_port, orig_host, orig_port)
+    # def connection_requested(self, dest_host: str, dest_port: int, orig_host: str, orig_port: int) -> _NewTCPSession:
+    #     return super().connection_requested(dest_host, dest_port, orig_host, orig_port)
     
     def server_requested(self, listen_host: str, listen_port: int) -> MaybeAwait[_NewListener]:
         print(f'Listening for connection {listen_host} on port {listen_port}.')
@@ -72,7 +72,7 @@ class AlleyServer(asyncssh.SSHServer):
     
 
 async def start_server() -> None:
-    await asyncssh.create_server(AlleyServer, 'localhost', 8022, server_host_keys=['ssh_host_key'])
+    await asyncssh.create_server(AlleyServer, '', 8022, server_host_keys=['ssh_host_key'])
 
 loop = asyncio.get_event_loop()
 
