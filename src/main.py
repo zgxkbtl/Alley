@@ -27,22 +27,44 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
     width, height, pixwidth, pixheight = process.get_terminal_size()
     username = process.get_extra_info('username')
 
-    try:
-        console = Console(file=stdout_wrapper, width=width, height=height, force_terminal=True)
-        console.print('Welcome to Alley!', style='bold')
-        with console.screen(style='bold white on black') as screen:
-            with Progress(console=console, auto_refresh=False) as progress:
+    async def show_content() -> None:
+        try:
+            console = Console(file=stdout_wrapper, width=width, height=height, force_terminal=True)
+            console.print('Welcome to Alley!\n', style='bold')
+            console.print(Text.from_markup(f'[blink]Alley for [i]{username}[/i][/blink]\n', justify='center'))
+            with Progress(console=console) as progress:
                 task = progress.add_task('Alley time lasted...', total=3600)
                 for count in range(3600):
-                    center_content = Align.center(
-                        Text(f'[blink]Alley for {username} time[/blink]\n{count}', justify='center'), 
-                        vertical='middle'
-                    )
-                    # progress.update(task, advance=1)
-                    screen.update(Panel(center_content))
+                    progress.update(task, advance=1)
+                    process.pause_writing()
                     await asyncio.sleep(1)
+        except Exception as e:
+            process.stderr.write(f'Error: {e}')
+            raise e
+
+    async def monitor_stdin() -> None:
+        try:
+            while True:
+                try:
+                    async for line in process.stdin:
+                        line = line.rstrip('\n')
+                        if line == 'exit()':
+                            break
+                except asyncssh.BreakReceived:
+                    pass
+                except asyncssh.TerminalSizeChanged:
+                    pass
+        except Exception as e:
+            process.stderr.write(f'Error: {e}')
+            print(e)
+        finally:
+            process.exit(0)
+
+    try:
+        await asyncio.gather(show_content(), monitor_stdin())
     except Exception as e:
-        console.print(str(e))
+        print(e)
+        process.stderr.write(f'Error: {e}')
 
     process.exit(0)
 
