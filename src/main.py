@@ -1,4 +1,5 @@
 import asyncio, asyncssh, sys
+from time import time
 from typing import Optional
 from asyncssh.connection import SSHServerConnection
 from asyncssh.server import _NewListener, _NewTCPSession
@@ -29,20 +30,7 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
     console = Console(file=stdout_wrapper, width=width, height=height, force_terminal=True)
     time_progress = Progress(console=console)
     time_task = time_progress.add_task('Time Usage', total=3600)
-
-    async def show_content() -> None:
-        try:
-            
-            console.print('Welcome to Alley!\n', style='bold')
-            console.print(Text.from_markup(f'[blink]Alley for [i]{username}[/i][/blink]\n', justify='center'))
-            with Progress(console=console) as progress:
-                task = progress.add_task('Alley time lasted...', total=3600)
-                for count in range(3600):
-                    progress.update(task, advance=1)
-                    await asyncio.sleep(1)
-        except Exception as e:
-            process.stderr.write(f'Error: {e}')
-            raise e
+    start_time = time()
 
     async def monitor_stdin() -> None:
         try:
@@ -53,9 +41,11 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
                         if line == 'exit':
                             break
                         elif line == 'usage':
-                            console.print(Text.from_markup(f'[blink]Alley for [i]{username}[/i][/blink]\n', justify='center'))
+                            console.print(Text.from_markup(f'[blink]Alley for [i]{username}[/i][/blink]', justify='center'))
                             console.print(time_progress)
-                            time_progress.advance(time_task, 50)
+                            time_progress.update(time_task, advance=50)
+                            console.print(Text.from_markup(f'\n[i]Time Elapsed: {(time() - start_time) / 1000}[/i]', justify='center'))
+
                         
                         elif line == 'clear':
                             console.clear()
@@ -111,7 +101,7 @@ class AlleyServer(asyncssh.SSHServer):
     async def server_requested(self, listen_host: str, listen_port: int) -> MaybeAwait[_NewListener]:
         listener = await self._conn.forward_local_port('', listen_port, listen_host, listen_port)
         print('Listening on port %s for connections to port %s.' % (listener.get_port(), listen_port))
-        self._conn.set_extra_info('getport', listener.get_port())
+        self._conn.set_extra_info(getport=listener.get_port())
         return listener
     
 
