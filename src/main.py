@@ -27,6 +27,8 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
     width, height, pixwidth, pixheight = process.get_terminal_size()
     username = process.get_extra_info('username')
     console = Console(file=stdout_wrapper, width=width, height=height, force_terminal=True)
+    time_progress = Progress(console=console)
+    time_task = time_progress.add_task('Time Usage', total=3600)
 
     async def show_content() -> None:
         try:
@@ -52,6 +54,10 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
                             break
                         elif line == 'usage':
                             console.print(Text.from_markup(f'[blink]Alley for [i]{username}[/i][/blink]\n', justify='center'))
+                            console.print(time_progress)
+                            time_progress.advance(time_task, 50)
+                        elif line == 'clear':
+                            console.clear()
 
                 except asyncssh.BreakReceived as e:
                     raise e
