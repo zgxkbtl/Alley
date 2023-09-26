@@ -39,18 +39,19 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
                     async for line in process.stdin:
                         line = line.rstrip('\n')
                         if line == 'exit':
-                            break
+                            raise asyncssh.BreakReceived
                         elif line == 'usage':
                             console.print(Text.from_markup(f'[blink]Alley for [i]{username}[/i][/blink]', justify='center'))
-                            console.print(time_progress)
-                            time_progress.update(time_task, advance=50)
                             console.print(Text.from_markup(f'\n[i]Time Elapsed: {(time() - start_time) / 1000}[/i]', justify='center'))
+                            time_progress.update(time_task, advance=(time() - start_time) / 1000)
+                            console.print(time_progress)
 
-                        
                         elif line == 'clear':
                             console.clear()
+
                         elif line == 'getport':
                             console.print(process.get_extra_info('getport'))
+
                         elif line == 'help':
                             console.print('Alley Help')
                             console.print('exit: Exit Alley')
