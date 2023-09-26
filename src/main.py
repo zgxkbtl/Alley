@@ -52,9 +52,9 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
                         if line == 'exit':
                             raise asyncssh.BreakReceived(1)
                         elif line == 'usage':
-                            console.print(Text.from_markup(f'[blink]Alley for [i]{username}[/i][/blink]', justify='center'))
-                            console.print(Text.from_markup(f'\n[i]Time Elapsed: {(time() - start_time) / 1000}[/i]', justify='center'))
-                            time_progress.update(time_task, advance=(time() - start_time) / 1000)
+                            console.print(Text.from_markup(f'\n[blink]Alley for [i]{username}[/i][/blink]', justify='center'))
+                            console.print(Text.from_markup(f'\n[i]Time Elapsed: {(time() - start_time)}[/i]', justify='center'))
+                            time_progress.update(time_task, advance=(time() - start_time))
                             console.print(time_progress)
 
                         elif line == 'clear':
