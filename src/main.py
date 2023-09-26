@@ -56,8 +56,17 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
                             console.print(Text.from_markup(f'[blink]Alley for [i]{username}[/i][/blink]\n', justify='center'))
                             console.print(time_progress)
                             time_progress.advance(time_task, 50)
+                        
                         elif line == 'clear':
                             console.clear()
+                        elif line == 'getport':
+                            console.print(process.get_extra_info('getport'))
+                        elif line == 'help':
+                            console.print('Alley Help')
+                            console.print('exit: Exit Alley')
+                            console.print('usage: Show usage of Alley')
+                            console.print('help: Show this help message')
+                            console.print('clear: Clear the screen')
 
                 except asyncssh.BreakReceived as e:
                     raise e
@@ -102,6 +111,7 @@ class AlleyServer(asyncssh.SSHServer):
     async def server_requested(self, listen_host: str, listen_port: int) -> MaybeAwait[_NewListener]:
         listener = await self._conn.forward_local_port('', listen_port, listen_host, listen_port)
         print('Listening on port %s for connections to port %s.' % (listener.get_port(), listen_port))
+        self._conn.set_extra_info('getport', listener.get_port())
         return listener
     
 
