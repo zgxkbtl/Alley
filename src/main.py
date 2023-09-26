@@ -34,9 +34,12 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
             with Progress(console=console, auto_refresh=False) as progress:
                 task = progress.add_task('Alley time lasted...', total=3600)
                 for count in range(3600):
-                    text = Align.center(Text(f'[blink]Alley for {username} time[/blink]\n{count}'), vertical='middle')
-                    progress.update(task, advance=1)
-                    screen.update(Panel(Group(text, process)))
+                    center_content = Align.center(
+                        Text(f'[blink]Alley for {username} time[/blink]\n{count}', justify='center'), 
+                        vertical='middle'
+                    )
+                    # progress.update(task, advance=1)
+                    screen.update(Panel(center_content))
                     await asyncio.sleep(1)
     except Exception as e:
         console.print(str(e))
