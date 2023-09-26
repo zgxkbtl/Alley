@@ -28,7 +28,7 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
     width, height, pixwidth, pixheight = process.get_terminal_size()
     username = process.get_extra_info('username')
     console = Console(file=stdout_wrapper, width=width, height=height, force_terminal=True)
-    time_progress = Progress(console=console)
+    time_progress = Progress(BarColumn(), console=console, )
     time_task = time_progress.add_task('Time Usage', total=3600)
     start_time = time()
 
@@ -39,7 +39,7 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
                     async for line in process.stdin:
                         line = line.rstrip('\n')
                         if line == 'exit':
-                            raise asyncssh.BreakReceived
+                            raise asyncssh.BreakReceived(1)
                         elif line == 'usage':
                             console.print(Text.from_markup(f'[blink]Alley for [i]{username}[/i][/blink]', justify='center'))
                             console.print(Text.from_markup(f'\n[i]Time Elapsed: {(time() - start_time) / 1000}[/i]', justify='center'))
