@@ -71,6 +71,7 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
 
 class AlleyServer(asyncssh.SSHServer):
     def connection_made(self, conn: SSHServerConnection) -> None:
+        self._conn = conn
         print('Connection received from %s.' % conn.get_extra_info('peername')[0])
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
@@ -91,9 +92,10 @@ class AlleyServer(asyncssh.SSHServer):
     # def connection_requested(self, dest_host: str, dest_port: int, orig_host: str, orig_port: int) -> _NewTCPSession:
     #     return super().connection_requested(dest_host, dest_port, orig_host, orig_port)
     
-    def server_requested(self, listen_host: str, listen_port: int) -> MaybeAwait[_NewListener]:
-        print(f'Listening for connection {listen_host} on port {listen_port}.')
-        return True
+    async def server_requested(self, listen_host: str, listen_port: int) -> MaybeAwait[_NewListener]:
+        listener = await self._conn.forward_local_port('', listen_port, '', listen_port)
+        print('Listening on port %s for connections to port %s.' % (listener.get_port(), listen_port))
+        return listener
     
 
 async def start_server() -> None:
