@@ -24,7 +24,7 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
             pass
     
     stdout_wrapper = SSHWriterWrapper(process.stdout)
-    width, height, pixwidth, pixheight = await process.get_terminal_size()
+    width, height, pixwidth, pixheight = process.get_terminal_size()
     username = process.get_extra_info('username')
 
     try:
