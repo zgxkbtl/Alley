@@ -8,6 +8,7 @@ from rich.console import Console, Group
 from rich.text import Text
 from rich.align import Align
 from rich.panel import Panel
+from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeRemainingColumn, TimeElapsedColumn
 
 from asyncssh.misc import MaybeAwait
@@ -28,9 +29,19 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
     width, height, pixwidth, pixheight = process.get_terminal_size()
     username = process.get_extra_info('username')
     console = Console(file=stdout_wrapper, width=width, height=height, force_terminal=True)
+    
     time_progress = Progress(BarColumn(), console=console, )
     time_task = time_progress.add_task('Time Usage', total=3600)
     start_time = time()
+
+    table = Table(title="Alley Help", show_header=True, header_style="bold magenta")
+    table.add_column("Command", justify="right", style="cyan", no_wrap=True)
+    table.add_column("Description", justify="right", style="green")
+    table.add_row("exit", "Exit Alley")
+    table.add_row("usage", "Show usage of Alley")
+    table.add_row("help", "Show this help message")
+    table.add_row("clear", "Clear the screen")
+    table.add_row("getport", "Get the port of the server")
 
     async def monitor_stdin() -> None:
         try:
@@ -53,11 +64,7 @@ async def handle_client(process: asyncssh.SSHServerProcess) -> None:
                             console.print(process.get_extra_info('getport'))
 
                         elif line == 'help':
-                            console.print('Alley Help')
-                            console.print('exit: Exit Alley')
-                            console.print('usage: Show usage of Alley')
-                            console.print('help: Show this help message')
-                            console.print('clear: Clear the screen')
+                            console.print(table)
 
                 except asyncssh.BreakReceived as e:
                     raise e
