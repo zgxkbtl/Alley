@@ -72,7 +72,7 @@ class AlleyServer(asyncssh.SSHServer):
     
 
 async def start_server() -> None:
-    await asyncssh.create_server(AlleyServer, '', 8022, server_host_keys=['ssh_host_key'])
+    await asyncssh.create_server(AlleyServer, '', 8022, server_host_keys=['ssh_host_key'], process_factory=handle_client)
 
 loop = asyncio.get_event_loop()
 
