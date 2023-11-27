@@ -5,7 +5,7 @@ import websockets
 import argparse
 import signal
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -44,7 +44,7 @@ async def handle_tcp_connection(connection_id, target_host, target_port, websock
         await writer.wait_closed()
 
 async def websocket_listener(websocket, target_host='localhost', target_port=22):
-    
+
     async for message in websocket:
         # message = await websocket.recv()
         data = json.loads(message)

@@ -1,13 +1,18 @@
+import sys
+import os
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 import argparse
 import asyncio
 import json
 import logging
-import os
 import signal
 import uuid
 import websockets
+from src.common.protocol import Packet, PacketType
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -28,12 +33,14 @@ async def tcp_server_handler(
     connection_id = str(uuid.uuid4())
     active_tcp_connections[connection_id] = (client_reader, client_writer)
     # 通知客户端新的TCP连接已建立，包括连接ID
-    await websocket.send(json.dumps({
+    response = Packet({
         "type": "new_connection",
         "connection_id": connection_id,
-        "port": port,
-        "data_tunnel_mode": 'reuse'
-    }))
+        "payload": {
+            "data_tunnel_mode": 'reuse'
+        }
+    }).json()
+    await websocket.send(json.dumps(response))
     try:
         while True:
             data = await client_reader.read(4096)  # 读取TCP连接的数据
@@ -45,11 +52,6 @@ async def tcp_server_handler(
                 "connection_id": connection_id,
                 "data": data.hex()  # 将二进制数据编码为十六进制字符串
             }))
-            # # 从客户端接收数据
-            # response = await websocket.recv()
-            # # 将客户端的数据写回TCP连接
-            # client_writer.write(response)
-            # await client_writer.drain()
     except Exception as e:
         logger.error(e)
     finally:
@@ -71,39 +73,40 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
     try:
         async for message in websocket:
             data = json.loads(message)
-            logger.info(f"Received message: {data}")
-            if data['type'] == 'tcp_listen':
-                # 为新的TCP连接生成一个唯一的标识符
-                # connection_id = str(uuid.uuid4())
-                port = data['payload']['port']
-                remote_host = data['payload']['remote_host']
-                remote_port = data['payload']['remote_port']
+            data = Packet(data)
+            if data.type == PacketType.TCP_LISTEN:
                 # 开启TCP服务器监听指定端口
                 tcp_server = await asyncio.start_server(
                     lambda r, w: tcp_server_handler(r, w, websocket),
-                    '0.0.0.0', remote_port
+                    host=data.payload.remote_host,
+                    port=data.payload.remote_port
                 )
                 # 通知客户端新的TCP服务器已建立
-                await websocket.send(json.dumps({
+                response = Packet({
                     "type": "new_tcp_server",
-                    # "connection_id": connection_id,
-                    "port": port,
-                    "websocket_id": websocket_id,
-                    "data_tunnel_mode": 'reuse'
-                }))
+                    "payload": {
+                        "remote_host": tcp_server.sockets[0].getsockname()[0],
+                        "remote_port": tcp_server.sockets[0].getsockname()[1],
+                        "websocket_id": websocket_id,
+                        "data_tunnel_mode": 'reuse'
+                    }
+                }).json()
+                await websocket.send(json.dumps(response))
                 # 将TCP服务器加入到活跃的TCP连接中
                 CONNECTIONS[websocket_id]['tcp_server'].append(tcp_server)
-            elif data['type'] == 'tcp_data':
+            elif data.type == PacketType.TCP_DATA:
                 # 从活跃的TCP连接中找到指定的连接
-                connection_id = data['payload']['connection_id']
+                connection_id = data.connection_id
                 if connection_id in active_tcp_connections:
                     # 将数据写回TCP连接
                     client_reader, client_writer = active_tcp_connections[connection_id]
                     assert isinstance(client_writer, asyncio.StreamWriter)
-                    client_writer.write(bytes.fromhex(data['data']))
+                    client_writer.write(bytes.fromhex(data.data))
                     await client_writer.drain()
     except websockets.exceptions.ConnectionClosed:
         logger.info(f'Connection closed from {websocket.remote_address}')
+    except Exception as e:
+        logger.error(e)
     finally:
         logger.info(f'Cancelling all TCP servers for {websocket.remote_address}')
         for tcp_server in CONNECTIONS[websocket_id]['tcp_server']:
