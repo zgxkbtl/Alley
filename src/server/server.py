@@ -11,54 +11,10 @@ import signal
 import uuid
 import websockets
 from src.common.protocol import Packet, PacketType
+from tcp_handler import tcp_server_handler, tcp_server_response_handler
+from src.common.log_config import configure_logger
 
-# logging.basicConfig(level=logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-
-
-# 用于存储所有活跃的TCP连接
-active_tcp_connections = {}
-
-async def tcp_server_handler(
-        client_reader: asyncio.StreamReader, 
-        client_writer: asyncio.StreamWriter, 
-        websocket: websockets.WebSocketServerProtocol):
-    # 为新的TCP连接生成一个唯一的标识符
-    connection_id = str(uuid.uuid4())
-    active_tcp_connections[connection_id] = (client_reader, client_writer)
-    # 通知客户端新的TCP连接已建立，包括连接ID
-    response = Packet({
-        "type": "new_connection",
-        "connection_id": connection_id,
-        "payload": {
-            "data_tunnel_mode": 'reuse'
-        }
-    }).json()
-    await websocket.send(json.dumps(response))
-    try:
-        while True:
-            data = await client_reader.read(4096)  # 读取TCP连接的数据
-            if not data:
-                break
-            # 将数据通过WebSocket发送到客户端，包括连接ID
-            await websocket.send(json.dumps({
-                "type": "tcp_data",
-                "connection_id": connection_id,
-                "data": data.hex()  # 将二进制数据编码为十六进制字符串
-            }))
-    except Exception as e:
-        logger.error(e)
-    finally:
-        client_writer.close()
-        await client_writer.wait_closed()
-        del active_tcp_connections[connection_id]  # 移除已关闭的连接
-
+logger = configure_logger(__name__)
 
 CONNECTIONS = {}
 
@@ -95,14 +51,7 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 # 将TCP服务器加入到活跃的TCP连接中
                 CONNECTIONS[websocket_id]['tcp_server'].append(tcp_server)
             elif data.type == PacketType.TCP_DATA:
-                # 从活跃的TCP连接中找到指定的连接
-                connection_id = data.connection_id
-                if connection_id in active_tcp_connections:
-                    # 将数据写回TCP连接
-                    client_reader, client_writer = active_tcp_connections[connection_id]
-                    assert isinstance(client_writer, asyncio.StreamWriter)
-                    client_writer.write(bytes.fromhex(data.data))
-                    await client_writer.drain()
+                await tcp_server_response_handler(data, websocket)
     except websockets.exceptions.ConnectionClosed:
         logger.info(f'Connection closed from {websocket.remote_address}')
     except Exception as e:
@@ -110,8 +59,20 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
     finally:
         logger.info(f'Cancelling all TCP servers for {websocket.remote_address}')
         for tcp_server in CONNECTIONS[websocket_id]['tcp_server']:
+            assert isinstance(tcp_server, asyncio.Server)
             tcp_server.close()
-            await tcp_server.wait_closed()
+            try:
+                timeout = 5.0
+                await asyncio.wait_for(tcp_server.wait_closed(), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warn(f'Failed to close TCP server in {timeout} seconds')
+                # 获取事件循环中的所有任务
+                tasks = asyncio.all_tasks()
+                # 取消与当前服务器相关的所有任务
+                for task in tasks:
+                    if task.get_coro().__name__ == 'serve_forever' and task.get_coro().__self__ is tcp_server:
+                        task.cancel()
+                        
         del CONNECTIONS[websocket_id]
         logger.info(f'Cancelled all TCP servers for {websocket.remote_address}')
 

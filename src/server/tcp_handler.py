@@ -10,14 +10,10 @@ import json
 import websockets
 import logging
 
-from common.protocol import Packet
+from src.common.protocol import Packet
+from src.common.log_config import configure_logger
 
-formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+logger = configure_logger(__name__)
 
 # 用于存储所有活跃的TCP连接
 active_tcp_connections = {}
