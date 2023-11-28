@@ -6,7 +6,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 import argparse
 import asyncio
 import json
-import logging
 import signal
 import uuid
 import websockets
@@ -15,6 +14,7 @@ from tcp_handler import tcp_server_handler, tcp_server_response_handler
 from src.common.log_config import configure_logger
 
 logger = configure_logger(__name__)
+websockets_logger = configure_logger('websockets')
 
 CONNECTIONS = {}
 
@@ -65,7 +65,7 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 timeout = 5.0
                 await asyncio.wait_for(tcp_server.wait_closed(), timeout=timeout)
             except asyncio.TimeoutError:
-                logger.warn(f'Failed to close TCP server in {timeout} seconds')
+                logger.warning(f'Failed to close TCP server in {timeout} seconds')
                 # 获取事件循环中的所有任务
                 tasks = asyncio.all_tasks()
                 # 取消与当前服务器相关的所有任务
@@ -86,8 +86,7 @@ async def start_server(host: str, port: int):
     async with websockets.serve(handler, host, port):
         await stop
 
-
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765, help="The port to listen on")
     parser.add_argument("--host", type=str, default='localhost', help="The host to bind to")
@@ -97,3 +96,6 @@ if __name__ == "__main__":
     host = args.host
 
     asyncio.run(start_server(host, port))
+
+if __name__ == "__main__":
+    main()

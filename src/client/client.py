@@ -15,13 +15,30 @@ logger.addHandler(handler)
 
 
 active_tcp_connections = {}
-active_tcp_listeners = {}
+active_tcp_events = {}
 
-async def handle_tcp_connection(connection_id, target_host, target_port, websocket):
+async def handle_tcp_connection(
+        connection_id, 
+        target_host, 
+        target_port, 
+        websocket: websockets.WebSocketClientProtocol,
+        event: asyncio.Event = None
+        ):
+    """
+    用于处理内网TCP连接的任务
+    :param connection_id: 连接ID
+    :param target_host: 目标主机
+    :param target_port: 目标端口
+    :param websocket: WebSocket连接对象
+    :return: None
+    """
+    
     logger.info(f"New TCP connection: {connection_id}")
     reader, writer = await asyncio.open_connection(target_host, target_port)
     logger.info(f"Connected to {target_host}:{target_port}")
     active_tcp_connections[connection_id] = (reader, writer)
+    if event:
+        event.set()
     try:
         while True:
             data = await reader.read(4096)
@@ -42,6 +59,9 @@ async def handle_tcp_connection(connection_id, target_host, target_port, websock
     finally:
         writer.close()
         await writer.wait_closed()
+        del active_tcp_connections[connection_id]
+        del active_tcp_events[connection_id]
+        logger.info(f"Closed TCP connection: {connection_id}")
 
 async def websocket_listener(websocket, target_host='localhost', target_port=22):
 
@@ -52,47 +72,59 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
         if data['type'] == 'new_connection':
             # 服务端通知新的TCP连接
             connection_id = data['connection_id']
-            # ...
             # 创建新的任务以处理内网TCP连接
-            task = asyncio.create_task(handle_tcp_connection(connection_id, target_host, target_port, websocket))
-            active_tcp_listeners[connection_id] = task
+            event = asyncio.Event()
+            active_tcp_events[connection_id] = event
+            task = asyncio.create_task(
+                handle_tcp_connection(
+                    connection_id, target_host, target_port, websocket,
+                    event=event
+                    )
+                )
         elif data['type'] == 'tcp_data':
             # 从服务端接收TCP数据
             connection_id = data['connection_id']
             tcp_data = bytes.fromhex(data['data'])
             # 从活跃的TCP连接中获取writer对象
-            while not active_tcp_connections.get(connection_id):
-                await asyncio.sleep(0.1)
+            event: asyncio.Event = active_tcp_events.get(connection_id)
+            await event.wait()
             r, w = active_tcp_connections.get(connection_id)
             if w:
                 # 将数据写入内网TCP连接
                 w.write(tcp_data)
                 await w.drain()
+            else:
+                logger.error(f"Invalid connection ID: {connection_id}")
 
-async def main(hostport, port):
+async def async_main(hostport, target_port, target_host):
     async with websockets.connect(f"ws://{hostport}") as websocket:
         await websocket.send(json.dumps({
             "type": 'tcp_listen',
             "payload": {
-                "port": port,
+                "port": target_port,
                 "remote_host": "localhost",
                 "remote_port": 9999
             }
         }))
 
-        await websocket_listener(websocket, target_port=port)
+        await websocket_listener(websocket, target_host=target_host, target_port=target_port)
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("port", type=int, nargs='?', default=8000, help="The port to listen on")
+    parser.add_argument("--target_host", type=str, default='localhost', help="The target host")
     parser.add_argument("--schema", type=str, default='tcp', help="The schema to use")
     parser.add_argument("--hostport", type=str, default='localhost:8765', help="The host:port to bind to")
 
     args = parser.parse_args()
 
-    port = args.port
+    target_port = args.port
     schema = args.schema
     hostport = args.hostport
+    target_host = args.target_host
 
     if schema == 'tcp':
-        asyncio.run(main(hostport, port))
+        asyncio.run(async_main(hostport, target_port, target_host))
+
+if __name__ == "__main__":
+    main()
