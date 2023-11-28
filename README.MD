@@ -2,7 +2,7 @@
 
 ![Alley Logo](https://github.com/your_username/your_repository/raw/main/logo.png)
 
-Alley 是一个使用纯 Python 实现的内网穿透工具，提供了服务端和客户端两个组件，帮助您在内网环境中访问外部网络资源。
+Alley 是一个使用纯 Python 实现的内网穿透工具，提供了服务端和客户端两个组件，帮助您将内网环境的资源暴露成外部网络资源。
 
 ## 特性
 
