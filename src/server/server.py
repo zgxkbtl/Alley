@@ -30,6 +30,7 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
         async for message in websocket:
             data = json.loads(message)
             data = Packet(data)
+            
             if data.type == PacketType.TCP_LISTEN:
                 # 开启TCP服务器监听指定端口
                 tcp_server = await asyncio.start_server(
@@ -39,7 +40,7 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 )
                 # 通知客户端新的TCP服务器已建立
                 response = Packet({
-                    "type": "new_tcp_server",
+                    "type": PacketType.NEW_TCP_SERVER,
                     "payload": {
                         "remote_host": tcp_server.sockets[0].getsockname()[0],
                         "remote_port": tcp_server.sockets[0].getsockname()[1],
@@ -50,8 +51,10 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 await websocket.send(json.dumps(response))
                 # 将TCP服务器加入到活跃的TCP连接中
                 CONNECTIONS[websocket_id]['tcp_server'].append(tcp_server)
+
             elif data.type == PacketType.TCP_DATA:
                 await tcp_server_response_handler(data, websocket)
+
     except websockets.exceptions.ConnectionClosed:
         logger.info(f'Connection closed from {websocket.remote_address}')
     except Exception as e:

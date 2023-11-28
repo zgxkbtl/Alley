@@ -96,16 +96,16 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
             else:
                 logger.error(f"Invalid connection ID: {connection_id}")
 
-async def async_main(hostport, target_port, target_host):
+async def async_main(hostport, target_port, target_host, remote_port):
     async with websockets.connect(f"ws://{hostport}") as websocket:
         await websocket.send(json.dumps({
-            "type": 'tcp_listen',
-            "payload": {
-                "port": target_port,
-                "remote_host": "localhost",
-                "remote_port": 9999
-            }
-        }))
+                "type": 'tcp_listen',
+                "payload": {
+                    "port": target_port,
+                    "remote_host": "localhost",
+                    "remote_port": remote_port
+                }
+            }))
 
         await websocket_listener(websocket, target_host=target_host, target_port=target_port)
 
@@ -115,6 +115,7 @@ def main():
     parser.add_argument("--target_host", type=str, default='localhost', help="The target host")
     parser.add_argument("--schema", type=str, default='tcp', help="The schema to use")
     parser.add_argument("--hostport", type=str, default='localhost:8765', help="The host:port to bind to")
+    parser.add_argument("--remote_port", type=int, default=22, help="The remote port to connect to")
 
     args = parser.parse_args()
 
@@ -122,9 +123,10 @@ def main():
     schema = args.schema
     hostport = args.hostport
     target_host = args.target_host
+    remote_port = args.remote_port
 
     if schema == 'tcp':
-        asyncio.run(async_main(hostport, target_port, target_host))
+        asyncio.run(async_main(hostport, target_port, target_host, remote_port))
 
 if __name__ == "__main__":
     main()

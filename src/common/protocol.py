@@ -13,8 +13,29 @@ class PacketType(Enum):
 
 
 class Packet:
+    """
+    This class is used to store a Packet object.
+    
+    Attributes:
+        type: The type of the packet.
+        data: The raw data to be sent over the wire. hex-encoded of binary.
+        payload: The payload of the packet.
+        size: The size of the packet.
+        connection_id: The connection ID of the packet.
+    """
 
     class Payload:
+        """
+        This class is used to store the payload of a Packet object.
+
+        Attributes:
+            data: The raw data to be sent over the wire. hex-encoded of binary.
+            port: Local client port to listen on. not used.
+            remote_host: The remote host to connect to.
+            remote_port: The remote port to connect to.
+            websocket_id: The ID of the WebSocket connection.
+            data_tunnel_mode: The data tunnel mode to use.
+        """
         def __init__(self, data: dict):
             self.data = data.get('data')
             self.port = data.get('port') # 本地监听端口
