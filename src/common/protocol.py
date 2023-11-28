@@ -41,21 +41,21 @@ class Packet:
             self.port = data.get('port') # 本地监听端口
             self.remote_host: str = data.get('remote_host', '0.0.0.0') # 远程主机
             self.remote_port: int = data.get('remote_port', 80) # 请求远程监听的端口
-            self.websocket_id: str = data.get('websocket_id')
+            self.websocket_id: str = data.get('websocket_id', None)
             self.data_tunnel_mode: str = data.get('data_tunnel_mode', 'reuse')
 
         def __repr__(self):
-            return f'<Payload data={self.data} connection_id={self.connection_id}>'
+            return f'<Payload data={self.data} port={self.port} remote_host={self.remote_host} remote_port={self.remote_port}>'
 
-    def __init__(self, data):
+    def __init__(self, data: dict):
         self.type = PacketType(data['type']) # 数据包类型
         self.data = data.get('data') # 二进制数据
-        self.payload = Packet.Payload(data.get('payload')) # 附加数据
+        self.payload = Packet.Payload(data.get('payload', {}))
         self.size = len(data) # 数据包大小
         self.connection_id = data.get('connection_id') # 连接ID
 
     def __repr__(self):
-        return f'<Packet type={self.type} payload={self.payload}>'
+        return f'<Packet type={self.type} payload={self.payload} data_size={self.size} connection_id={self.connection_id}>'
     
     def json(self):
         return {

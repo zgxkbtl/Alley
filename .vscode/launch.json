@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        {
+            "name": "Python: Module (src.client.client)",
+            "type": "python",
+            "request": "launch",
+            "module": "src.client.client",
+            "justMyCode": true
+        }
+    ]
+}
