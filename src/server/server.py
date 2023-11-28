@@ -30,7 +30,7 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
         async for message in websocket:
             data = json.loads(message)
             data = Packet(data)
-            
+
             if data.type == PacketType.TCP_LISTEN:
                 # 开启TCP服务器监听指定端口
                 tcp_server = await asyncio.start_server(
@@ -84,10 +84,14 @@ async def start_server(host: str, port: int):
     stop = loop.create_future()
     if os.name != 'nt':  # Not Windows
         loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
-        loop.add_signal_handler(signal.SIGINT, stop.set_result, None)
 
-    async with websockets.serve(handler, host, port):
-        await stop
+    try:
+        async with websockets.serve(handler, host, port):
+            await stop
+    except asyncio.CancelledError:
+        logger.info('Server stopped')
+    except Exception as e:
+        logger.error(e)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -97,8 +101,11 @@ def main():
 
     port = args.port
     host = args.host
-
-    asyncio.run(start_server(host, port))
+    
+    try:
+        asyncio.run(start_server(host, port))
+    except KeyboardInterrupt:
+        logger.warning('KeyboardInterrupt')
 
 if __name__ == "__main__":
     main()
