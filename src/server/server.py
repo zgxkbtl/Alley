@@ -10,7 +10,7 @@ import signal
 import uuid
 import websockets
 from src.common.protocol import Packet, PacketType
-from tcp_handler import tcp_server_handler, tcp_server_response_handler
+from src.server.tcp_handler import tcp_server_handler, tcp_server_response_handler
 from src.common.log_config import configure_logger
 
 logger = configure_logger(__name__)
@@ -19,7 +19,7 @@ websockets_logger = configure_logger('websockets')
 CONNECTIONS = {}
 
 async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
-    logger.info(f'New connection from {websocket.remote_address}')
+    logger.info(f'New websocket connection from {websocket.remote_address}')
     websocket_id = str(uuid.uuid4())
     CONNECTIONS[websocket_id] = {
         'websocket': websocket,
@@ -32,6 +32,13 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
             data = Packet(data)
 
             if data.type == PacketType.TCP_LISTEN:
+
+                # # 获取主机的所有IP地址
+                # host_info = socket.getaddrinfo(socket.gethostname(), None)
+
+                # # 获取所有的IPv4地址
+                # ip_addresses = [info[4][0] for info in host_info if info[0] == socket.AF_INET]
+
                 # 开启TCP服务器监听指定端口
                 tcp_server = await asyncio.start_server(
                     lambda r, w: tcp_server_handler(r, w, websocket),

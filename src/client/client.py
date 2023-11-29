@@ -35,7 +35,7 @@ async def handle_tcp_connection(
     """
     
     try:
-        logger.info(f"New TCP connection: {connection_id}")
+        logger.info(f"New TCP connection {connection_id} to {target_host}:{target_port}")
         reader, writer = await asyncio.open_connection(target_host, target_port)
         if event:
             event.set()
@@ -66,7 +66,13 @@ async def handle_tcp_connection(
         logger.info(f"Closed TCP connection: {connection_id}")
 
 async def websocket_listener(websocket, target_host='localhost', target_port=22):
-
+    """
+    监听WebSocket消息
+    :param websocket: WebSocket连接对象
+    :param target_host: 本地目标主机
+    :param target_port: 本地目标端口
+    :return: None
+    """
     async for message in websocket:
         # message = await websocket.recv()
         data = json.loads(message)
@@ -81,9 +87,8 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
             task = asyncio.create_task(
                 handle_tcp_connection(
                     connection_id, target_host, target_port, websocket,
-                    event=event
-                    )
-                )
+                    event=event))
+            task.add_done_callback(lambda x: logger.info(f"Task {x} done"))
         elif data.type == PacketType.TCP_DATA:
             # 从服务端接收TCP数据
             connection_id = data.connection_id
@@ -99,6 +104,9 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
             else:
                 logger.error(f"Invalid connection ID: {connection_id}")
                 # TODO: 通知服务端关闭连接 connection_id
+        elif data.type == PacketType.NEW_TCP_SERVER:
+            # 服务端通知新的TCP服务器已建立
+            logger.info(f"New TCP server: {data.payload.remote_host}:{data.payload.remote_port}")
 
 async def async_main(hostport, target_port, target_host, remote_port):
     async with websockets.connect(f"ws://{hostport}") as websocket:
@@ -120,7 +128,7 @@ def main():
     parser.add_argument("--target_host", type=str, default='localhost', help="The target host")
     parser.add_argument("--schema", type=str, default='tcp', help="The schema to use")
     parser.add_argument("--hostport", type=str, default='localhost:8765', help="The host:port to bind to")
-    parser.add_argument("--remote_port", type=int, default=9999, help="The remote port to connect to")
+    parser.add_argument("--remote_port", type=int, default=None, help="The remote port to connect to")
 
     args = parser.parse_args()
 

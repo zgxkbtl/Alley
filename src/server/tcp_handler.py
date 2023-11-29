@@ -10,7 +10,7 @@ import json
 import websockets
 import logging
 
-from src.common.protocol import Packet
+from src.common.protocol import Packet, PacketType
 from src.common.log_config import configure_logger
 
 logger = configure_logger(__name__)
@@ -27,7 +27,7 @@ async def tcp_server_handler(
     active_tcp_connections[connection_id] = (client_reader, client_writer)
     # 通知客户端新的TCP连接已建立，包括连接ID
     response = Packet({
-        "type": "new_connection",
+        "type": PacketType.NEW_CONNECTION,
         "connection_id": connection_id,
         "payload": {
             "data_tunnel_mode": 'reuse'
