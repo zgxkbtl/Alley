@@ -5,7 +5,7 @@ NGINX_UNIT_CONTROL_SOCKET = '/var/run/control.unit.sock'
 # https://www.python-httpx.org/advanced/#usage_1
 
 async def get_config():
-    transport = httpx.HTTPTransport(uds=NGINX_UNIT_CONTROL_SOCKET)
+    transport = httpx.AsyncHTTPTransport(uds=NGINX_UNIT_CONTROL_SOCKET)
     async with httpx.AsyncClient(transport=transport) as client:
         response = await client.get("http://localhost/config")
         print(response.status_code)
@@ -13,7 +13,7 @@ async def get_config():
 
 
 async def set_config(config: json):
-    transport = httpx.HTTPTransport(uds=NGINX_UNIT_CONTROL_SOCKET)
+    transport = httpx.AsyncHTTPTransport(uds=NGINX_UNIT_CONTROL_SOCKET)
     async with httpx.AsyncClient(transport=transport) as client:
         response = await client.put("http://localhost/config", json=config)
         print(response.status_code)
