@@ -34,7 +34,7 @@ async def set_proxy_config(port: int):
             },
 
             "action": {
-                "proxy": f"http://127.0.0.1:{port}/*"
+                "proxy": f"http://127.0.0.1:{port}"
             }
         }
         ]
