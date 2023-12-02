@@ -60,12 +60,12 @@ async def handle_tcp_connection(
             writer.close()
             await writer.wait_closed()
         active_tcp_connections.pop(connection_id, None)
-        eve = active_tcp_events.pop(connection_id, None)
+        active_tcp_events.pop(connection_id, None)
         if event:
             event.set()
-        # TODO: 通知服务端关闭连接 connection_id
+
         await send_tcp_close_signal(websocket, connection_id, 'Connection closed')
-        logger.info(f"Closed TCP connection: {connection_id}")
+        logger.info(f"Closed TCP connection for local socket: {connection_id}")
 
 async def websocket_listener(websocket, target_host='localhost', target_port=22):
     """
@@ -91,8 +91,9 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
                 handle_tcp_connection(
                     connection_id, target_host, target_port, websocket,
                     event=event))
-            # TODO: 通知服务端关闭连接 connection_id
+
             task.add_done_callback(lambda x: logger.info(f"Task {x} done"))
+
         elif data.type == PacketType.TCP_DATA:
             # 从服务端接收TCP数据
             connection_id = data.connection_id
