@@ -29,11 +29,12 @@ async def set_proxy_config(port: int):
         "routes": [
             {
             "match": {
-                "host": "test.nn.luobotou.org"
+                "host": "test.nn.luobotou.org",
+                "uri": "/*"
             },
 
             "action": {
-                "proxy": f"http://127.0.0.1:{port}"
+                "proxy": f"http://127.0.0.1:{port}/*"
             }
         }
         ]
