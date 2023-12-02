@@ -11,7 +11,7 @@ import signal
 import uuid
 import websockets
 from src.common.protocol import Packet, PacketType
-from src.server.tcp_handler import send_notification, tcp_server_response_handler, tcp_server_listener
+from src.server.tcp_handler import send_notification, tcp_server_response_handler, tcp_server_listener, terminate_tcp_connection
 from src.common.log_config import configure_logger
 from src.server.nginx_unit_controller import flush_proxy_config, set_proxy_config
 
@@ -49,6 +49,10 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
 
             elif data.type == PacketType.TCP_DATA:
                 await tcp_server_response_handler(data, websocket)
+
+            elif data.type == PacketType.TCP_CLOSE:
+                await terminate_tcp_connection(data, websocket)
+                logger.info(f'Close TCP connection {data.connection_id} for {websocket.remote_address}')
 
     except websockets.exceptions.ConnectionClosed:
         logger.info(f'Connection closed from {websocket.remote_address}')

@@ -1,5 +1,6 @@
 import sys
 import os
+from src.client.tcp_handler import send_tcp_close_signal
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
@@ -91,6 +92,8 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
                     event=event))
             # TODO: 通知服务端关闭连接 connection_id
             task.add_done_callback(lambda x: logger.info(f"Task {x} done"))
+            task.add_done_callback(lambda x: active_tcp_events.pop(connection_id, None))
+            task.add_done_callback(lambda x: send_tcp_close_signal(websocket, connection_id, ''))
         elif data.type == PacketType.TCP_DATA:
             # 从服务端接收TCP数据
             connection_id = data.connection_id
