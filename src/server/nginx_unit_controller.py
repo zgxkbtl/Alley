@@ -46,7 +46,7 @@ async def set_proxy_config(domain:str, port: int):
         },
 
         "action": {
-            "proxy": f"http://{domain}.{SERVER_DOMAIN}:{port}"
+            "proxy": f"http://127.0.0.1:{port}"
         }
     })
     await set_config(config)
