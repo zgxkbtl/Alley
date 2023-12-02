@@ -51,8 +51,12 @@ async def tcp_server_handler(
     except Exception as e:
         logger.error(e)
     finally:
-        client_writer.close()
-        await client_writer.wait_closed()
+        try:
+            if not client_writer.is_closing():
+                client_writer.close()
+            await client_writer.wait_closed()
+        except Exception as e:
+            logger.error("Error closing TCP connection for Remote socket: %s", e)
         active_tcp_connections.pop(connection_id, None)  # 移除已关闭的连接
 
 async def tcp_server_response_handler(data: Packet, websocket: websockets.WebSocketServerProtocol):
@@ -108,8 +112,15 @@ async def send_notification(websocket: websockets.WebSocketServerProtocol, messa
 
 async def terminate_tcp_connection(websocket: websockets.WebSocketServerProtocol, connection_id: str):
     reader, writer = active_tcp_connections[connection_id]
-    writer.close()
-    await writer.wait_closed()
+    if not isinstance(writer, asyncio.StreamWriter):
+        logger.error(f"Invalid connection ID: {connection_id}")
+        return
+    try:
+        if not writer.is_closing():
+            writer.close()
+        await writer.wait_closed()
+    except Exception as e:
+        logger.error("Error closing TCP connection for Remote socket: %s", e)
     active_tcp_connections.pop(connection_id, None)
     logger.info(f"TCP connection {connection_id} closed")
     await send_notification(websocket, f'TCP connection {connection_id} closed')

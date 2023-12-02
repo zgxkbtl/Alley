@@ -57,8 +57,13 @@ async def handle_tcp_connection(
         logger.error(e)
     finally:
         if 'writer' in locals():
-            writer.close()
-            await writer.wait_closed()
+            try:
+                if not writer.is_closing():
+                    writer.close()
+                await writer.wait_closed()
+            except Exception as e:
+                logger.error("Error closing TCP connection for Local socket: %s", e)
+
         active_tcp_connections.pop(connection_id, None)
         active_tcp_events.pop(connection_id, None)
         if event:

@@ -74,6 +74,8 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 for task in tasks:
                     if task.get_coro().__name__ == 'serve_forever' and task.get_coro().__self__ is tcp_server:
                         task.cancel()
+            except Exception as e:
+                logger.error(e)
         del CONNECTIONS[websocket_id]
         tcp_servers = list(chain.from_iterable(conn['tcp_server'] for conn in CONNECTIONS.values()))
         await flush_proxy_config(tcp_servers)
