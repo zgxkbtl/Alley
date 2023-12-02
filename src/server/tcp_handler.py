@@ -95,7 +95,7 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
     #     }
     # }).json()
     # await websocket.send(json.dumps(response))
-    send_notification(websocket, f'New TCP server {remote_host} ---> {data.payload.port}')
+    await send_notification(websocket, f'New TCP server {remote_host} ---> {data.payload.port}')
     return tcp_server
 
 async def send_notification(websocket: websockets.WebSocketServerProtocol, message: str):
