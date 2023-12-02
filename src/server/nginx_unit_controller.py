@@ -63,11 +63,13 @@ async def flush_proxy_config(tcp_servers: list[asyncio.Server]):
         if 'routes' not in config:
             return
         routes = config['routes']
+        new_routes = []
         for tcp_server in tcp_servers:
             for socket in tcp_server.sockets:
                 for route in routes:
                     if route['action']['proxy'].endswith(str(socket.getsockname()[1])):
-                        routes.remove(route)
+                        new_routes.append(route)
+        config['routes'] = new_routes
         await set_config(config)
     except Exception as e:
         logger.error(e)

@@ -1,3 +1,4 @@
+from itertools import chain
 import sys
 import os
 
@@ -44,7 +45,7 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 logger.info(f'New TCP server {tcp_server.sockets[0].getsockname()} for {websocket.remote_address}')
                 domain = await set_proxy_config(data.payload.domain, tcp_server.sockets[0].getsockname()[1])
                 logger.info(f'Set proxy config for {websocket.remote_address}')
-                await send_notification(websocket, f'Proxy config set for {domain} ---> {data.payload.port}')
+                await send_notification(websocket, f'Proxy config set for http://{domain} ---> {data.payload.port}')
 
             elif data.type == PacketType.TCP_DATA:
                 await tcp_server_response_handler(data, websocket)
@@ -69,8 +70,9 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 for task in tasks:
                     if task.get_coro().__name__ == 'serve_forever' and task.get_coro().__self__ is tcp_server:
                         task.cancel()
-        await flush_proxy_config(CONNECTIONS[websocket_id]['tcp_server'])
         del CONNECTIONS[websocket_id]
+        tcp_servers = list(chain.from_iterable(conn['tcp_server'] for conn in CONNECTIONS.values()))
+        await flush_proxy_config(tcp_servers)
         logger.info(f'Cancelled all TCP servers for {websocket.remote_address}')
 
 async def start_server(host: str, port: int):

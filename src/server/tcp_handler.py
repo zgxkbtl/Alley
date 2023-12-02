@@ -86,6 +86,7 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
     )
     # 通知客户端新的TCP服务器已建立
     remote_host = SERVER_DOMAIN if SERVER_DOMAIN else websocket.remote_address[0]
+    remote_port = tcp_server.sockets[0].getsockname()[1]
     # response = Packet({
     #     "type": PacketType.NEW_TCP_SERVER,
     #     "payload": {
@@ -95,7 +96,7 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
     #     }
     # }).json()
     # await websocket.send(json.dumps(response))
-    await send_notification(websocket, f'New TCP server {remote_host} ---> {data.payload.port}')
+    await send_notification(websocket, f'New TCP server {remote_host}:{remote_port} ---> {data.payload.port}')
     return tcp_server
 
 async def send_notification(websocket: websockets.WebSocketServerProtocol, message: str):
