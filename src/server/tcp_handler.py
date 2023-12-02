@@ -54,6 +54,7 @@ async def tcp_server_handler(
         client_writer.close()
         await client_writer.wait_closed()
         del active_tcp_connections[connection_id]  # 移除已关闭的连接
+        logger.info(f"TCP connection {connection_id} closed")
 
 async def tcp_server_response_handler(data: Packet, websocket: websockets.WebSocketServerProtocol):
     # 从WebSocket接收到TCP数据

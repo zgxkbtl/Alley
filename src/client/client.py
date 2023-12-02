@@ -89,6 +89,7 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
                 handle_tcp_connection(
                     connection_id, target_host, target_port, websocket,
                     event=event))
+            # TODO: 通知服务端关闭连接 connection_id
             task.add_done_callback(lambda x: logger.info(f"Task {x} done"))
         elif data.type == PacketType.TCP_DATA:
             # 从服务端接收TCP数据
@@ -104,7 +105,6 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
                 await w.drain()
             else:
                 logger.error(f"Invalid connection ID: {connection_id}")
-                # TODO: 通知服务端关闭连接 connection_id
         elif data.type == PacketType.NEW_TCP_SERVER:
             # 服务端通知新的TCP服务器已建立
             logger.info(f"New TCP server on remote: {data.payload.remote_host}:{data.payload.remote_port}")
