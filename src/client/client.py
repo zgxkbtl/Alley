@@ -64,6 +64,7 @@ async def handle_tcp_connection(
         if event:
             event.set()
         # TODO: 通知服务端关闭连接 connection_id
+        await send_tcp_close_signal(websocket, connection_id, 'Connection closed')
         logger.info(f"Closed TCP connection: {connection_id}")
 
 async def websocket_listener(websocket, target_host='localhost', target_port=22):
@@ -92,8 +93,6 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
                     event=event))
             # TODO: 通知服务端关闭连接 connection_id
             task.add_done_callback(lambda x: logger.info(f"Task {x} done"))
-            task.add_done_callback(lambda x: active_tcp_events.pop(connection_id, None))
-            task.add_done_callback(lambda x: asyncio.create_task(send_tcp_close_signal(websocket, connection_id, '')))
         elif data.type == PacketType.TCP_DATA:
             # 从服务端接收TCP数据
             connection_id = data.connection_id
