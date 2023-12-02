@@ -13,7 +13,8 @@ async def get_config():
 
 
 async def set_config(config: json):
-    async with httpx.AsyncClient(uds=NGINX_UNIT_CONTROL_SOCKET) as client:
+    transport = httpx.HTTPTransport(uds=NGINX_UNIT_CONTROL_SOCKET)
+    async with httpx.AsyncClient(transport=transport) as client:
         response = await client.put("http://localhost/config", json=config)
         print(response.status_code)
         print(response.text)

@@ -112,9 +112,10 @@ async def async_main(hostport,
                      target_port, target_host, 
                      remote_port, remote_host='localhost',
                      schema='tcp', **kwargs):
+    type = PacketType.TCP_LISTEN if schema == 'tcp' else PacketType.HTTP_LISTEN
     async with websockets.connect(f"ws://{hostport}") as websocket:
         response = Packet({
-            "type": PacketType.TCP_LISTEN,
+            "type": type,
             "payload": {
                 "port": target_port,
                 "remote_host": remote_host,
