@@ -108,13 +108,16 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
             # 服务端通知新的TCP服务器已建立
             logger.info(f"New TCP server: {data.payload.remote_host}:{data.payload.remote_port}")
 
-async def async_main(hostport, target_port, target_host, remote_port):
+async def async_main(hostport, 
+                     target_port, target_host, 
+                     remote_port, remote_host='localhost',
+                     schema='tcp', **kwargs):
     async with websockets.connect(f"ws://{hostport}") as websocket:
         response = Packet({
             "type": PacketType.TCP_LISTEN,
             "payload": {
                 "port": target_port,
-                "remote_host": "localhost",
+                "remote_host": remote_host,
                 "remote_port": remote_port
             }
         }).json()
@@ -138,8 +141,7 @@ def main():
     target_host = args.target_host
     remote_port = args.remote_port
 
-    if schema == 'tcp':
-        asyncio.run(async_main(hostport, target_port, target_host, remote_port))
+    asyncio.run(async_main(hostport, target_port, target_host, remote_port, schema=schema))
 
 if __name__ == "__main__":
     main()

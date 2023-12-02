@@ -63,3 +63,29 @@ async def tcp_server_response_handler(data: Packet, websocket: websockets.WebSoc
     # 将数据写入TCP连接
     client_writer.write(bytes.fromhex(data.data))
     await client_writer.drain()
+
+
+async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, data: Packet) -> asyncio.Server:
+    # # 获取主机的所有IP地址
+    # host_info = socket.getaddrinfo(socket.gethostname(), None)
+
+    # # 获取所有的IPv4地址
+    # ip_addresses = [info[4][0] for info in host_info if info[0] == socket.AF_INET]
+
+    # 开启TCP服务器监听指定端口
+    tcp_server = await asyncio.start_server(
+        lambda r, w: tcp_server_handler(r, w, websocket),
+        host=data.payload.remote_host,
+        port=data.payload.remote_port
+    )
+    # 通知客户端新的TCP服务器已建立
+    response = Packet({
+        "type": PacketType.NEW_TCP_SERVER,
+        "payload": {
+            "remote_host": tcp_server.sockets[0].getsockname()[0],
+            "remote_port": tcp_server.sockets[0].getsockname()[1],
+            "data_tunnel_mode": 'reuse'
+        }
+    }).json()
+    await websocket.send(json.dumps(response))
+    return tcp_server

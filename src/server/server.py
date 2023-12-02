@@ -10,8 +10,9 @@ import signal
 import uuid
 import websockets
 from src.common.protocol import Packet, PacketType
-from src.server.tcp_handler import tcp_server_handler, tcp_server_response_handler
+from src.server.tcp_handler import tcp_server_handler, tcp_server_response_handler, tcp_server_listener
 from src.common.log_config import configure_logger
+from src.server.nginx_unit_controller import set_proxy_config
 
 logger = configure_logger(__name__)
 websockets_logger = configure_logger('websockets')
@@ -58,6 +59,13 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 await websocket.send(json.dumps(response))
                 # 将TCP服务器加入到活跃的TCP连接中
                 CONNECTIONS[websocket_id]['tcp_server'].append(tcp_server)
+                logger.info(f'New TCP server {tcp_server.sockets[0].getsockname()} for {websocket.remote_address}')
+            elif data.type == PacketType.HTTP_LISTEN:
+                tcp_server = await tcp_server_listener(websocket, data)
+                CONNECTIONS[websocket_id]['tcp_server'].append(tcp_server)
+                logger.info(f'New TCP server {tcp_server.sockets[0].getsockname()} for {websocket.remote_address}')
+                await set_proxy_config(tcp_server.sockets[0].getsockname()[1])
+                logger.info(f'Set proxy config for {websocket.remote_address}')
 
             elif data.type == PacketType.TCP_DATA:
                 await tcp_server_response_handler(data, websocket)
@@ -103,7 +111,7 @@ async def start_server(host: str, port: int):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765, help="The port to listen on")
-    parser.add_argument("--host", type=str, default='localhost', help="The host to bind to")
+    parser.add_argument("--host", type=str, default='', help="The host to bind to")
     args = parser.parse_args()
 
     port = args.port

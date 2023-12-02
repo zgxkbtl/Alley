@@ -4,6 +4,7 @@ from enum import Enum
 class PacketType(Enum):
     # Client -> Server
     TCP_LISTEN = 'tcp_listen'
+    HTTP_LISTEN = 'http_listen'
     TCP_DATA = 'tcp_data'
     TCP_CLOSE = 'tcp_close'
     # Server -> Client
