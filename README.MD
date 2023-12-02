@@ -6,11 +6,11 @@ Alley 是一个使用纯 Python 实现的内网穿透工具，提供了服务端
 
 ## 特性
 
-- 快速简单的设置，无需复杂的配置
-- 支持多种协议，包括 HTTP、TCP、UDP
-- 安全可靠的数据传输，使用加密算法保护数据
-- 支持自定义域名和端口映射
-- 跨平台支持，可以在 Windows、Linux 和 macOS 上运行
+- [x] 快速简单的设置，无需复杂的配置
+- [ ] 支持多种协议，包括 HTTP、TCP、~~UDP~~
+- [ ] 安全可靠的数据传输，使用加密算法保护数据
+- [x] 支持自定义域名和端口映射
+- [x] 跨平台支持，可以在 Windows、Linux 和 macOS 上运行
 
 ## 安装
 
@@ -34,6 +34,15 @@ cd Alley
 pip install -r requirements.txt
 ```
 
+4. 安装 nginx unit：(可选)
+
+参考 [nginx unit 安装指南](https://unit.nginx.org/installation/) 安装 nginx unit，然后（可选）将环境变量 `SERVER_DOMAIN` 设置为您的 nginx unit 的域名。
+
+```bash
+export SERVER_DOMAIN=example.com
+```
+
+
 ## 使用
 
 ### 服务端
@@ -41,6 +50,8 @@ pip install -r requirements.txt
 1. 在您的服务器上运行以下命令启动服务端：
 
 ```bash
+export SERVER_DOMAIN=example.com
+
 python -m src.server.server
 ```
 
@@ -51,10 +62,28 @@ python -m src.server.server
 1. 在您的客户端上运行以下命令启动客户端：
 
 ```bash
-python -m src.client.client <port> --hostport <host>:<port>
+python -m src.client.client 33089 --hostport example.com:8765
 ```
 
-2. 客户端将会连接到指定的服务端，并在本地启动一个代理服务器，代理本地的 `<port>` 端口。
+2. 客户端将会连接到指定的服务端`example.com`，并在本地启动一个代理服务器，代理本地的 `33089` 端口。默认会认为服务是一个 HTTP 服务，服务器会自动分配一个子域名，您可以通过 `--remote_host`， `--remote_port` 参数指定您的域名和端口。
+
+3. 如果一切运行正常，在控制台中您将会看到以下输出：
+
+```bash
+12-03 02:32:03 - __main__:client.py:82 - INFO - Received message: NOTIFICATION: New TCP server example.com:45961 ---> 33089
+12-03 02:32:03 - __main__:client.py:82 - INFO - Received message: NOTIFICATION: Proxy config set for http://gvcewvoksx.example.com ---> 33089
+
+```
+
+4. 您可以通过访问 `http://gvcewvoksx.example.com` 来访问您的本地服务。
+
+5. 如果您需要直接转发端口，您可以使用 `--schema tcp` 参数，例如：
+
+```bash
+python -m src.client.client 8888 --hostport example.com:8000 --schema tcp
+```
+然后您可以通过控制台信息访问类似 `example.com:45961` 来访问您的本地服务。
+
 
 ## 示例
 
