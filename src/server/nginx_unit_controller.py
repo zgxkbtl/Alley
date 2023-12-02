@@ -2,7 +2,7 @@ import json
 import httpx
 import os
 
-from common.log_config import configure_logger
+from src.common.log_config import configure_logger
 
 NGINX_UNIT_CONTROL_SOCKET = '/var/run/control.unit.sock'
 SERVER_DOMAIN = os.getenv('SERVER_DOMAIN', 'localhost')
