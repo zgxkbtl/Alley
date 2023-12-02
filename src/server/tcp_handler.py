@@ -73,9 +73,12 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
     # ip_addresses = [info[4][0] for info in host_info if info[0] == socket.AF_INET]
 
     # 开启TCP服务器监听指定端口
+    host = data.payload.remote_host
+    if data.type == PacketType.TCP_LISTEN:
+        host = ''
     tcp_server = await asyncio.start_server(
         lambda r, w: tcp_server_handler(r, w, websocket),
-        host=data.payload.remote_host,
+        host=host,
         port=data.payload.remote_port
     )
     # 通知客户端新的TCP服务器已建立
