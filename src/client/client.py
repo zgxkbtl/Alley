@@ -113,26 +113,43 @@ async def async_main(hostport,
                      remote_port, remote_host='localhost',
                      schema='tcp', **kwargs):
     type = PacketType.TCP_LISTEN if schema == 'tcp' else PacketType.HTTP_LISTEN
-    async with websockets.connect(f"ws://{hostport}") as websocket:
-        response = Packet({
-            "type": type,
-            "payload": {
-                "port": target_port,
-                "remote_host": remote_host,
-                "remote_port": remote_port
-            }
-        }).json()
-        await websocket.send(json.dumps(response))
+    if type == PacketType.HTTP_LISTEN:
+        async with websockets.connect(f"ws://{hostport}") as websocket:
+            response = Packet({
+                "type": type,
+                "payload": {
+                    "port": target_port,
+                    "remote_host": remote_host,
+                    "remote_port": remote_port,
+                    "domain": kwargs.get('domain', '')
+                }
+            }).json()
+            await websocket.send(json.dumps(response))
 
-        await websocket_listener(websocket, target_host=target_host, target_port=target_port)
+            await websocket_listener(websocket, target_host=target_host, target_port=target_port)
+
+    if type == PacketType.TCP_LISTEN:
+        async with websockets.connect(f"ws://{hostport}") as websocket:
+            response = Packet({
+                "type": type,
+                "payload": {
+                    "port": target_port,
+                    "remote_host": remote_host,
+                    "remote_port": remote_port
+                }
+            }).json()
+            await websocket.send(json.dumps(response))
+
+            await websocket_listener(websocket, target_host=target_host, target_port=target_port)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("port", type=int, nargs='?', default=8000, help="The port to listen on")
     parser.add_argument("--target_host", type=str, default='localhost', help="The target host")
-    parser.add_argument("--schema", type=str, default='tcp', help="The schema to use")
+    parser.add_argument("--schema", type=str, default='http', help="The schema to use, http or tcp")
     parser.add_argument("--hostport", type=str, default='localhost:8765', help="The host:port to bind to")
     parser.add_argument("--remote_port", type=int, default=None, help="The remote port to connect to")
+    parser.add_argument("--domain", type=str, default=None, help="The sub domain to use")
 
     args = parser.parse_args()
 
@@ -142,7 +159,8 @@ def main():
     target_host = args.target_host
     remote_port = args.remote_port
 
-    asyncio.run(async_main(hostport, target_port, target_host, remote_port, schema=schema))
+    asyncio.run(async_main(hostport, target_port, target_host, remote_port, schema=schema, 
+                           domain=args.domain))
 
 if __name__ == "__main__":
     main()

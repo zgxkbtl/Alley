@@ -1,7 +1,10 @@
 import json
 import httpx
+import os
 
 NGINX_UNIT_CONTROL_SOCKET = '/var/run/control.unit.sock'
+SERVER_DOMAIN = os.getenv('SERVER_DOMAIN', 'localhost')
+
 # https://www.python-httpx.org/advanced/#usage_1
 
 async def get_config():
@@ -10,6 +13,7 @@ async def get_config():
         response = await client.get("http://localhost/config")
         print(response.status_code)
         print(response.text)
+        return response.json()
 
 
 async def set_config(config: json):
@@ -19,27 +23,34 @@ async def set_config(config: json):
         print(response.status_code)
         print(response.text)
 
-async def set_proxy_config(port: int):
-    config = {
-        "listeners": {
+async def set_proxy_config(domain:str, port: int):
+    if not domain:
+        # random domain only contains letters
+        import random
+        import string
+        domain = ''.join(random.choices(string.ascii_lowercase, k=10))
+
+    config = await get_config()
+    if 'listeners' not in config:
+        config['listeners'] = {
             "*:80": {
                 "pass": "routes"
             }
-        },
-        "routes": [
-            {
-            "match": {
-                "host": "test.nn.luobotou.org",
-                "uri": "/*"
-            },
-
-            "action": {
-                "proxy": f"http://127.0.0.1:{port}"
-            }
         }
-        ]
-    }
+    if 'routes' not in config:
+        config['routes'] = []
+    config['routes'].append({
+        "match": {
+            "host": f'{domain}.{SERVER_DOMAIN}',
+            "uri": "/*"
+        },
+
+        "action": {
+            "proxy": f"http://{domain}.{SERVER_DOMAIN}:{port}"
+        }
+    })
     await set_config(config)
+    return f'{domain}.{SERVER_DOMAIN}'
 
 
 async def main():

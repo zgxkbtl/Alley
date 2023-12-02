@@ -10,7 +10,7 @@ import signal
 import uuid
 import websockets
 from src.common.protocol import Packet, PacketType
-from src.server.tcp_handler import tcp_server_handler, tcp_server_response_handler, tcp_server_listener
+from src.server.tcp_handler import send_notification, tcp_server_response_handler, tcp_server_listener
 from src.common.log_config import configure_logger
 from src.server.nginx_unit_controller import set_proxy_config
 
@@ -33,39 +33,18 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
             data = Packet(data)
 
             if data.type == PacketType.TCP_LISTEN:
-
-                # # 获取主机的所有IP地址
-                # host_info = socket.getaddrinfo(socket.gethostname(), None)
-
-                # # 获取所有的IPv4地址
-                # ip_addresses = [info[4][0] for info in host_info if info[0] == socket.AF_INET]
-
-                # 开启TCP服务器监听指定端口
-                tcp_server = await asyncio.start_server(
-                    lambda r, w: tcp_server_handler(r, w, websocket),
-                    host=data.payload.remote_host,
-                    port=data.payload.remote_port
-                )
-                # 通知客户端新的TCP服务器已建立
-                response = Packet({
-                    "type": PacketType.NEW_TCP_SERVER,
-                    "payload": {
-                        "remote_host": tcp_server.sockets[0].getsockname()[0],
-                        "remote_port": tcp_server.sockets[0].getsockname()[1],
-                        "websocket_id": websocket_id,
-                        "data_tunnel_mode": 'reuse'
-                    }
-                }).json()
-                await websocket.send(json.dumps(response))
+                tcp_server = await tcp_server_listener(websocket, data)
                 # 将TCP服务器加入到活跃的TCP连接中
                 CONNECTIONS[websocket_id]['tcp_server'].append(tcp_server)
                 logger.info(f'New TCP server {tcp_server.sockets[0].getsockname()} for {websocket.remote_address}')
+            
             elif data.type == PacketType.HTTP_LISTEN:
                 tcp_server = await tcp_server_listener(websocket, data)
                 CONNECTIONS[websocket_id]['tcp_server'].append(tcp_server)
                 logger.info(f'New TCP server {tcp_server.sockets[0].getsockname()} for {websocket.remote_address}')
-                await set_proxy_config(tcp_server.sockets[0].getsockname()[1])
+                domain = await set_proxy_config(data.payload.domain, tcp_server.sockets[0].getsockname()[1])
                 logger.info(f'Set proxy config for {websocket.remote_address}')
+                await send_notification(websocket, f'Proxy config set for {domain} ---> {data.payload.port}')
 
             elif data.type == PacketType.TCP_DATA:
                 await tcp_server_response_handler(data, websocket)

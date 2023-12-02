@@ -10,6 +10,7 @@ class PacketType(Enum):
     # Server -> Client
     NEW_CONNECTION = 'new_connection'
     NEW_TCP_SERVER = 'new_tcp_server'
+    NEW_NOTIFICATION = 'new_notification'
 
 
 
@@ -44,6 +45,7 @@ class Packet:
             self.remote_port: int = data.get('remote_port', 80) # 请求远程监听的端口
             self.websocket_id: str = data.get('websocket_id', None)
             self.data_tunnel_mode: str = data.get('data_tunnel_mode', 'reuse')
+            self.domain: str = data.get('domain', '')
 
         def __repr__(self):
             return f'<Payload data={self.data} port={self.port} remote_host={self.remote_host} remote_port={self.remote_port}>'
@@ -56,6 +58,9 @@ class Packet:
         self.connection_id = data.get('connection_id') # 连接ID
 
     def __repr__(self):
+        if self.type == PacketType.NEW_NOTIFICATION:
+            return f'NOTIFICATION: {self.data}'
+        
         return f'<Packet type={self.type} payload={self.payload} data_size={self.size} connection_id={self.connection_id}>'
     
     def json(self):

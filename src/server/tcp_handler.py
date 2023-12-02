@@ -89,3 +89,10 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
     }).json()
     await websocket.send(json.dumps(response))
     return tcp_server
+
+async def send_notification(websocket: websockets.WebSocketServerProtocol, message: str):
+    response = Packet({
+        "type": PacketType.NEW_NOTIFICATION,
+        "data": message
+    }).json()
+    await websocket.send(json.dumps(response))
