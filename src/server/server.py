@@ -51,7 +51,7 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 await tcp_server_response_handler(data, websocket)
 
             elif data.type == PacketType.TCP_CLOSE:
-                await terminate_tcp_connection(websocket=websocket, data=data)
+                await terminate_tcp_connection(websocket=websocket, connection_id=data.connection_id)
                 logger.info(f'Close TCP connection {data.connection_id} for {websocket.remote_address}')
 
     except websockets.exceptions.ConnectionClosed:
