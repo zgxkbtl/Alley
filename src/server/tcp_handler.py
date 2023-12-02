@@ -75,7 +75,7 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
     # 开启TCP服务器监听指定端口
     host = data.payload.remote_host
     if data.type == PacketType.TCP_LISTEN:
-        host = ''
+        host = '0.0.0.0'
     tcp_server = await asyncio.start_server(
         lambda r, w: tcp_server_handler(r, w, websocket),
         host=host,
