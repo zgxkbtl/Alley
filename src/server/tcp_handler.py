@@ -3,6 +3,7 @@ import os
 import uuid
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+SERVER_DOMAIN = os.getenv('SERVER_DOMAIN', '')
 
 
 import asyncio
@@ -22,6 +23,8 @@ async def tcp_server_handler(
         client_reader: asyncio.StreamReader, 
         client_writer: asyncio.StreamWriter, 
         websocket: websockets.WebSocketServerProtocol):
+    # TODO: support multiple TCP connections: bring config_id to tcp_server_handler
+
     # 为新的TCP连接生成一个唯一的标识符
     connection_id = str(uuid.uuid4())
     active_tcp_connections[connection_id] = (client_reader, client_writer)
@@ -82,15 +85,17 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
         port=data.payload.remote_port
     )
     # 通知客户端新的TCP服务器已建立
-    response = Packet({
-        "type": PacketType.NEW_TCP_SERVER,
-        "payload": {
-            "remote_host": tcp_server.sockets[0].getsockname()[0],
-            "remote_port": tcp_server.sockets[0].getsockname()[1],
-            "data_tunnel_mode": 'reuse'
-        }
-    }).json()
-    await websocket.send(json.dumps(response))
+    remote_host = SERVER_DOMAIN if SERVER_DOMAIN else websocket.remote_address[0]
+    # response = Packet({
+    #     "type": PacketType.NEW_TCP_SERVER,
+    #     "payload": {
+    #         "remote_host": remote_host,
+    #         "remote_port": tcp_server.sockets[0].getsockname()[1],
+    #         "data_tunnel_mode": 'reuse'
+    #     }
+    # }).json()
+    # await websocket.send(json.dumps(response))
+    send_notification(websocket, f'New TCP server {remote_host} ---> {data.payload.port}')
     return tcp_server
 
 async def send_notification(websocket: websockets.WebSocketServerProtocol, message: str):

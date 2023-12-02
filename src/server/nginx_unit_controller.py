@@ -2,10 +2,14 @@ import json
 import httpx
 import os
 
+from common.log_config import configure_logger
+
 NGINX_UNIT_CONTROL_SOCKET = '/var/run/control.unit.sock'
 SERVER_DOMAIN = os.getenv('SERVER_DOMAIN', 'localhost')
 
 # https://www.python-httpx.org/advanced/#usage_1
+logger = configure_logger(__name__)
+
 
 async def get_config():
     transport = httpx.AsyncHTTPTransport(uds=NGINX_UNIT_CONTROL_SOCKET)
@@ -52,6 +56,21 @@ async def set_proxy_config(domain:str, port: int):
     await set_config(config)
     return f'{domain}.{SERVER_DOMAIN}'
 
+async def flush_proxy_config(tcp_servers: list[asyncio.Server]):
+    try:
+        config = await get_config()
+        if 'routes' not in config:
+            return
+        routes = config['routes']
+        for tcp_server in tcp_servers:
+            for socket in tcp_server.sockets:
+                for route in routes:
+                    if route['action']['proxy'].endswith(str(socket.getsockname()[1])):
+                        routes.remove(route)
+        await set_config(config)
+    except Exception as e:
+        logger.error(e)
+    
 
 async def main():
     async with httpx.AsyncClient(uds=NGINX_UNIT_CONTROL_SOCKET) as client:

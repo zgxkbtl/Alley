@@ -12,7 +12,7 @@ import websockets
 from src.common.protocol import Packet, PacketType
 from src.server.tcp_handler import send_notification, tcp_server_response_handler, tcp_server_listener
 from src.common.log_config import configure_logger
-from src.server.nginx_unit_controller import set_proxy_config
+from src.server.nginx_unit_controller import flush_proxy_config, set_proxy_config
 
 logger = configure_logger(__name__)
 websockets_logger = configure_logger('websockets')
@@ -69,7 +69,7 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 for task in tasks:
                     if task.get_coro().__name__ == 'serve_forever' and task.get_coro().__self__ is tcp_server:
                         task.cancel()
-                        
+        await flush_proxy_config(CONNECTIONS[websocket_id]['tcp_server'])
         del CONNECTIONS[websocket_id]
         logger.info(f'Cancelled all TCP servers for {websocket.remote_address}')
 

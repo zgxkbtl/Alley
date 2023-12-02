@@ -78,6 +78,7 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
         data = json.loads(message)
         data = Packet(data)
         logger.info(f"Received message: {data}")
+        # TODO: support multiple proxy servers: using config_id to identify proxy server
         if data.type == PacketType.NEW_CONNECTION:
             # 服务端通知新的TCP连接
             connection_id = data.connection_id
@@ -106,7 +107,7 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
                 # TODO: 通知服务端关闭连接 connection_id
         elif data.type == PacketType.NEW_TCP_SERVER:
             # 服务端通知新的TCP服务器已建立
-            logger.info(f"New TCP server: {data.payload.remote_host}:{data.payload.remote_port}")
+            logger.info(f"New TCP server on remote: {data.payload.remote_host}:{data.payload.remote_port}")
 
 async def async_main(hostport, 
                      target_port, target_host, 
@@ -115,9 +116,11 @@ async def async_main(hostport,
     type = PacketType.TCP_LISTEN if schema == 'tcp' else PacketType.HTTP_LISTEN
     if type == PacketType.HTTP_LISTEN:
         async with websockets.connect(f"ws://{hostport}") as websocket:
+            # TODO: support multiple proxy servers: using for loop with config_id
             response = Packet({
                 "type": type,
                 "payload": {
+                    "config_id": 0,
                     "port": target_port,
                     "remote_host": remote_host,
                     "remote_port": remote_port,
@@ -125,7 +128,7 @@ async def async_main(hostport,
                 }
             }).json()
             await websocket.send(json.dumps(response))
-
+            # TODO: support multiple proxy servers: using config with config_id
             await websocket_listener(websocket, target_host=target_host, target_port=target_port)
 
     if type == PacketType.TCP_LISTEN:
@@ -133,6 +136,7 @@ async def async_main(hostport,
             response = Packet({
                 "type": type,
                 "payload": {
+                    "config_id": 0,
                     "port": target_port,
                     "remote_host": remote_host,
                     "remote_port": remote_port

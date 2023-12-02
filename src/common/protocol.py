@@ -39,6 +39,7 @@ class Packet:
             data_tunnel_mode: The data tunnel mode to use.
         """
         def __init__(self, data: dict):
+            self.config_id = data.get('config_id', 0)
             self.data = data.get('data')
             self.port = data.get('port') # 本地监听端口
             self.remote_host: str = data.get('remote_host', '0.0.0.0') # 远程主机
