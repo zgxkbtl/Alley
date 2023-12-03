@@ -57,7 +57,7 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
     except websockets.exceptions.ConnectionClosed:
         logger.info(f'Connection closed from {websocket.remote_address}')
     except Exception as e:
-        logger.error(e)
+        logger.error('websocket handler error: %s', e, exc_info=True)
     finally:
         logger.info(f'Cancelling all TCP servers for {websocket.remote_address}')
         for tcp_server in CONNECTIONS[websocket_id]['tcp_server']:

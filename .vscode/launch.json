@@ -5,6 +5,13 @@
             "type": "python",
             "request": "launch",
             "module": "src.client.client",
+            "args": [
+                "3389",
+                "--schema",
+                "tcp",
+                "--hostport",
+                "nn.luobotou.org:8765",
+            ],
             "justMyCode": true
         }
     ]
