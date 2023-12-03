@@ -113,6 +113,9 @@ async def send_notification(websocket: websockets.WebSocketServerProtocol, messa
     await websocket.send(json.dumps(response))
 
 async def terminate_tcp_connection(websocket: websockets.WebSocketServerProtocol, connection_id: str):
+    if connection_id not in active_tcp_connections:
+        logger.error(f"Invalid connection ID: {connection_id}")
+        return
     reader, writer = active_tcp_connections[connection_id]
     if not isinstance(writer, asyncio.StreamWriter):
         logger.error(f"Invalid connection ID: {connection_id}")
