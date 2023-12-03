@@ -113,9 +113,27 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
                 await w.drain()
             else:
                 logger.error(f"Invalid connection ID: {connection_id}")
+
         elif data.type == PacketType.NEW_TCP_SERVER:
             # 服务端通知新的TCP服务器已建立
             logger.info(f"New TCP server on remote: {data.payload.remote_host}:{data.payload.remote_port}")
+
+        elif data.type == PacketType.TCP_CLOSE:
+            # 服务端通知TCP连接已关闭
+            connection_id = data.connection_id
+            if connection_id in active_tcp_connections:
+                # 关闭内网TCP连接
+                reader, writer = active_tcp_connections[connection_id]
+                try:
+                    if not writer.is_closing():
+                        writer.close()
+                    await writer.wait_closed()
+                except Exception as e:
+                    logger.error("Error closing TCP connection for Local socket: %s", e)
+                active_tcp_connections.pop(connection_id, None)
+                logger.info(f"Closed TCP connection for local socket: {connection_id}")
+            else:
+                logger.error(f"Invalid connection ID: {connection_id}")
 
 async def async_main(hostport, 
                      target_port, target_host, 
