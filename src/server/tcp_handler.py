@@ -1,3 +1,4 @@
+import socket
 import sys
 import os
 import uuid
@@ -43,11 +44,17 @@ async def tcp_server_handler(
             if not data:
                 break
             # 将数据通过WebSocket发送到客户端，包括连接ID
-            await websocket.send(json.dumps({
-                "type": "tcp_data",
+            response = Packet({
+                "type": PacketType.TCP_DATA,
                 "connection_id": connection_id,
+                # "payload": {
+                #     "remote_host": client_writer.get_extra_info('peername')[0],
+                #     "remote_port": client_writer.get_extra_info('peername')[1]
+                # },
                 "data": data.hex()  # 将二进制数据编码为十六进制字符串
-            }))
+            }).json()
+
+            await websocket.send(json.dumps(response))
     except Exception as e:
         logger.error(e)
     finally:
@@ -75,11 +82,6 @@ async def tcp_server_response_handler(data: Packet, websocket: websockets.WebSoc
 
 
 async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, data: Packet) -> asyncio.Server:
-    # # 获取主机的所有IP地址
-    # host_info = socket.getaddrinfo(socket.gethostname(), None)
-
-    # # 获取所有的IPv4地址
-    # ip_addresses = [info[4][0] for info in host_info if info[0] == socket.AF_INET]
 
     # 开启TCP服务器监听指定端口
     host = data.payload.remote_host
@@ -90,19 +92,25 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
         host=host,
         port=data.payload.remote_port
     )
+
+    # local_ip, local_port = websocket.local_address
+    # print(f"Local IP: {local_ip}, Local Port: {local_port}")
+
     # 通知客户端新的TCP服务器已建立
-    remote_host = SERVER_DOMAIN if SERVER_DOMAIN else websocket.remote_address[0]
+    remote_host = SERVER_DOMAIN if SERVER_DOMAIN else host
+    if not remote_host:
+        remote_host = websocket.local_address[0]
     remote_port = tcp_server.sockets[0].getsockname()[1]
-    # response = Packet({
-    #     "type": PacketType.NEW_TCP_SERVER,
-    #     "payload": {
-    #         "remote_host": remote_host,
-    #         "remote_port": tcp_server.sockets[0].getsockname()[1],
-    #         "data_tunnel_mode": 'reuse'
-    #     }
-    # }).json()
-    # await websocket.send(json.dumps(response))
+
     await send_notification(websocket, f'New TCP server {remote_host}:{remote_port} ---> {data.payload.port}')
+    if remote_host == '0.0.0.0':
+        # 获取主机的所有IP地址
+        host_info = socket.getaddrinfo(socket.gethostname(), None)
+
+        # 获取所有的IPv4地址
+        ip_addresses = [info[4][0] for info in host_info if info[0] == socket.AF_INET]
+        for ip_address in ip_addresses:
+            await send_notification(websocket, f'New TCP server {ip_address}:{remote_port} ---> {data.payload.port}')
     return tcp_server
 
 async def send_notification(websocket: websockets.WebSocketServerProtocol, message: str):
