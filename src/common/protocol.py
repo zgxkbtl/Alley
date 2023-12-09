@@ -43,7 +43,7 @@ class Packet:
             self.data = data.get('data')
             self.port = data.get('port') # 本地监听端口
             self.remote_host: str = data.get('remote_host', '0.0.0.0') # 远程主机
-            self.remote_port: int = data.get('remote_port', 80) # 请求远程监听的端口
+            self.remote_port: int = data.get('remote_port', None) # 请求远程监听的端口
             self.websocket_id: str = data.get('websocket_id', None)
             self.data_tunnel_mode: str = data.get('data_tunnel_mode', 'reuse')
             self.domain: str = data.get('domain', '')
