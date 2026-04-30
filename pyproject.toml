@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alley"
+version = "0.1.0"
+description = "A minimal Python TCP/HTTP tunnel over WebSocket."
+readme = "README.MD"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.28.1",
+    "websockets>=15.0.1",
+]
+
+[project.scripts]
+alley-client = "src.client.client:main"
+alley-server = "src.server.server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+namespaces = true

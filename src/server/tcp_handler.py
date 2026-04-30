@@ -1,16 +1,12 @@
 import socket
-import sys
 import os
 import uuid
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 SERVER_DOMAIN = os.getenv('SERVER_DOMAIN', '')
 
 
 import asyncio
 import json
 import websockets
-import logging
 
 from src.common.protocol import Packet, PacketType
 from src.common.log_config import configure_logger
@@ -19,6 +15,15 @@ logger = configure_logger(__name__)
 
 # 用于存储所有活跃的TCP连接
 active_tcp_connections = {}
+
+
+async def close_writer(writer: asyncio.StreamWriter, name: str):
+    try:
+        if not writer.is_closing():
+            writer.close()
+        await writer.wait_closed()
+    except Exception as e:
+        logger.error("Error closing TCP connection for %s socket: %s", name, e)
 
 async def tcp_server_handler(
         client_reader: asyncio.StreamReader, 
@@ -56,15 +61,9 @@ async def tcp_server_handler(
 
             await websocket.send(json.dumps(response))
     except Exception as e:
-        logger.error(e)
+        logger.error('Remote TCP handler failed: %s', e, exc_info=True)
     finally:
-        try:
-            if not client_writer.is_closing():
-                client_writer.close()
-            await client_writer.wait_closed()
-        except Exception as e:
-            logger.error("Error closing TCP connection for Remote socket: %s", e)
-        # TODO: 通知客户端TCP连接已关闭，包括连接ID
+        await close_writer(client_writer, 'remote')
         await send_tcp_close_signal(websocket, connection_id, 'TCP connection closed')
         active_tcp_connections.pop(connection_id, None)  # 移除已关闭的连接
 
@@ -77,7 +76,12 @@ async def tcp_server_response_handler(data: Packet, websocket: websockets.WebSoc
     _client_reader, client_writer = active_tcp_connections[connection_id]
     assert isinstance(client_writer, asyncio.StreamWriter)
     # 将数据写入TCP连接
-    client_writer.write(bytes.fromhex(data.data))
+    try:
+        payload = bytes.fromhex(data.data)
+    except ValueError as e:
+        logger.error('Invalid TCP payload for connection %s: %s', connection_id, e)
+        return
+    client_writer.write(payload)
     await client_writer.drain()
 
 
@@ -92,9 +96,6 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
         host=host,
         port=data.payload.remote_port
     )
-
-    # local_ip, local_port = websocket.local_address
-    # print(f"Local IP: {local_ip}, Local Port: {local_port}")
 
     # 通知客户端新的TCP服务器已建立
     remote_host = SERVER_DOMAIN if SERVER_DOMAIN else host
@@ -121,19 +122,14 @@ async def send_notification(websocket: websockets.WebSocketServerProtocol, messa
     await websocket.send(json.dumps(response))
 
 async def terminate_tcp_connection(websocket: websockets.WebSocketServerProtocol, connection_id: str):
-    if connection_id not in active_tcp_connections:
+    if not connection_id or connection_id not in active_tcp_connections:
         logger.error(f"Invalid connection ID: {connection_id}")
         return
-    reader, writer = active_tcp_connections[connection_id]
+    _reader, writer = active_tcp_connections[connection_id]
     if not isinstance(writer, asyncio.StreamWriter):
         logger.error(f"Invalid connection ID: {connection_id}")
         return
-    try:
-        if not writer.is_closing():
-            writer.close()
-        await writer.wait_closed()
-    except Exception as e:
-        logger.error("Error closing TCP connection for Remote socket: %s", e)
+    await close_writer(writer, 'remote')
     active_tcp_connections.pop(connection_id, None)
     logger.info(f"TCP connection {connection_id} closed")
     await send_notification(websocket, f'TCP connection {connection_id} closed')
@@ -144,4 +140,7 @@ async def send_tcp_close_signal(websocket: websockets.WebSocketServerProtocol, c
         "connection_id": connection_id,
         "data": message
     }).json()
-    await websocket.send(json.dumps(response))
+    try:
+        await websocket.send(json.dumps(response))
+    except websockets.exceptions.ConnectionClosed:
+        logger.info("WebSocket closed before TCP close signal could be sent: %s", connection_id)

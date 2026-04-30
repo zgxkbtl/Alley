@@ -1,8 +1,5 @@
 from itertools import chain
-import sys
 import os
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 import argparse
 import asyncio
@@ -13,14 +10,14 @@ import websockets
 from src.common.protocol import Packet, PacketType
 from src.server.tcp_handler import send_notification, tcp_server_response_handler, tcp_server_listener, terminate_tcp_connection
 from src.common.log_config import configure_logger
-from src.server.nginx_unit_controller import flush_proxy_config, set_proxy_config
+from src.server.nginx_unit_controller import UnitUnavailable, flush_proxy_config, set_proxy_config
 
 logger = configure_logger(__name__)
 websockets_logger = configure_logger('websockets')
 
-CONNECTIONS = {}
+CONNECTIONS: dict[str, dict] = {}
 
-async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
+async def handler(websocket):
     logger.info(f'New websocket connection from {websocket.remote_address}')
     websocket_id = str(uuid.uuid4())
     CONNECTIONS[websocket_id] = {
@@ -30,8 +27,11 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
     }
     try:
         async for message in websocket:
-            data = json.loads(message)
-            data = Packet(data)
+            try:
+                data = Packet(json.loads(message))
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.warning('Invalid packet from %s: %s', websocket.remote_address, e)
+                continue
 
             if data.type == PacketType.TCP_LISTEN:
                 tcp_server = await tcp_server_listener(websocket, data)
@@ -43,9 +43,14 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                 tcp_server = await tcp_server_listener(websocket, data)
                 CONNECTIONS[websocket_id]['tcp_server'].append(tcp_server)
                 logger.info(f'New TCP server {tcp_server.sockets[0].getsockname()} for {websocket.remote_address}')
-                domain = await set_proxy_config(data.payload.domain, tcp_server.sockets[0].getsockname()[1])
-                logger.info(f'Set proxy config for {websocket.remote_address}')
-                await send_notification(websocket, f'Proxy config set for http://{domain} ---> {data.payload.port}')
+                try:
+                    domain = await set_proxy_config(data.payload.domain, tcp_server.sockets[0].getsockname()[1])
+                except UnitUnavailable as e:
+                    logger.info(e)
+                    await send_notification(websocket, f'nginx unit unavailable; use the TCP server address directly')
+                else:
+                    logger.info(f'Set proxy config for {websocket.remote_address}')
+                    await send_notification(websocket, f'Proxy config set for http://{domain} ---> {data.payload.port}')
 
             elif data.type == PacketType.TCP_DATA:
                 await tcp_server_response_handler(data, websocket)
@@ -75,8 +80,8 @@ async def handler(websocket: websockets.WebSocketServerProtocol, path: str):
                     if task.get_coro().__name__ == 'serve_forever' and task.get_coro().__self__ is tcp_server:
                         task.cancel()
             except Exception as e:
-                logger.error(e)
-        del CONNECTIONS[websocket_id]
+                logger.error('Failed to close TCP server: %s', e, exc_info=True)
+        CONNECTIONS.pop(websocket_id, None)
         tcp_servers = list(chain.from_iterable(conn['tcp_server'] for conn in CONNECTIONS.values()))
         await flush_proxy_config(tcp_servers)
         logger.info(f'Cancelled all TCP servers for {websocket.remote_address}')
@@ -85,15 +90,11 @@ async def start_server(host: str, port: int):
     loop = asyncio.get_running_loop()
     stop = loop.create_future()
     if os.name != 'nt':  # Not Windows
-        loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
+        loop.add_signal_handler(signal.SIGTERM, lambda: stop.done() or stop.set_result(None))
 
-    try:
-        async with websockets.serve(handler, host, port):
-            await stop
-    except asyncio.CancelledError:
-        logger.info('Server stopped')
-    except Exception as e:
-        logger.error(e)
+    async with websockets.serve(handler, host, port):
+        logger.info('Alley server listening on %s:%s', host or '0.0.0.0', port)
+        await stop
 
 def main():
     parser = argparse.ArgumentParser()

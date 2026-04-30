@@ -7,7 +7,10 @@ def configure_logger(name):
         )
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
+    if logger.handlers:
+        return logger
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+    logger.propagate = False
     return logger

@@ -1,15 +1,7 @@
-import sys
-import os
-from src.client.tcp_handler import send_tcp_close_signal
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-
 import asyncio
 import json
-import logging
 import websockets
 import argparse
-import signal
 from src.common.log_config import configure_logger
 from src.common.protocol import Packet, PacketType
 
@@ -18,6 +10,18 @@ websocket_listener_logger = configure_logger('websockets')
 
 active_tcp_connections = {}
 active_tcp_events = {}
+
+
+async def send_tcp_close_signal(websocket, connection_id: str, message: str):
+    response = Packet({
+        "type": PacketType.TCP_CLOSE,
+        "connection_id": connection_id,
+        "data": message
+    }).json()
+    try:
+        await websocket.send(json.dumps(response))
+    except websockets.exceptions.ConnectionClosed:
+        logger.info("WebSocket closed before TCP close signal could be sent: %s", connection_id)
 
 async def handle_tcp_connection(
         connection_id, 
@@ -54,7 +58,7 @@ async def handle_tcp_connection(
             }).json()
             await websocket.send(json.dumps(response))
     except Exception as e:
-        logger.error(e)
+        logger.error('Local TCP handler failed: %s', e, exc_info=True)
     finally:
         if 'writer' in locals():
             try:
@@ -82,8 +86,11 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
     """
     async for message in websocket:
         # message = await websocket.recv()
-        data = json.loads(message)
-        data = Packet(data)
+        try:
+            data = Packet(json.loads(message))
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.warning('Invalid packet from server: %s', e)
+            continue
         logger.info(f"Received message: {data}")
         # TODO: support multiple proxy servers: using config_id to identify proxy server
         if data.type == PacketType.NEW_CONNECTION:
@@ -105,8 +112,9 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
             tcp_data = bytes.fromhex(data.data)
             # 从活跃的TCP连接中获取writer对象
             event: asyncio.Event = active_tcp_events.get(connection_id, None)
-            if event: await event.wait()
-            r, w = active_tcp_connections.get(connection_id, (None, None))
+            if event:
+                await event.wait()
+            _r, w = active_tcp_connections.get(connection_id, (None, None))
             if w:
                 # 将数据写入内网TCP连接
                 w.write(tcp_data)
@@ -131,20 +139,21 @@ async def websocket_listener(websocket, target_host='localhost', target_port=22)
                 except Exception as e:
                     logger.error("Error closing TCP connection for Local socket: %s", e)
                 active_tcp_connections.pop(connection_id, None)
+                active_tcp_events.pop(connection_id, None)
                 logger.info(f"Closed TCP connection for local socket: {connection_id}")
             else:
-                logger.error(f"Invalid connection ID: {connection_id}")
+                logger.info(f"TCP connection already closed: {connection_id}")
 
 async def async_main(hostport, 
                      target_port, target_host, 
                      remote_port, remote_host='localhost',
                      schema='tcp', **kwargs):
-    type = PacketType.TCP_LISTEN if schema == 'tcp' else PacketType.HTTP_LISTEN
-    if type == PacketType.HTTP_LISTEN:
+    listen_type = PacketType.TCP_LISTEN if schema == 'tcp' else PacketType.HTTP_LISTEN
+    if listen_type == PacketType.HTTP_LISTEN:
         async with websockets.connect(f"ws://{hostport}") as websocket:
             # TODO: support multiple proxy servers: using for loop with config_id
             response = Packet({
-                "type": type,
+                "type": listen_type,
                 "payload": {
                     "config_id": 0,
                     "port": target_port,
@@ -157,10 +166,10 @@ async def async_main(hostport,
             # TODO: support multiple proxy servers: using config with config_id
             await websocket_listener(websocket, target_host=target_host, target_port=target_port)
 
-    if type == PacketType.TCP_LISTEN:
+    elif listen_type == PacketType.TCP_LISTEN:
         async with websockets.connect(f"ws://{hostport}") as websocket:
             response = Packet({
-                "type": type,
+                "type": listen_type,
                 "payload": {
                     "config_id": 0,
                     "port": target_port,
@@ -176,7 +185,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("port", type=int, nargs='?', default=8000, help="The port to listen on")
     parser.add_argument("--target_host", type=str, default='localhost', help="The target host")
-    parser.add_argument("--schema", type=str, default='http', help="The schema to use, http or tcp")
+    parser.add_argument("--schema", choices=('http', 'tcp'), default='http', help="The schema to use")
     parser.add_argument("--hostport", type=str, default='localhost:8765', help="The host:port to bind to")
     parser.add_argument("--remote_port", type=int, default=None, help="The remote port to connect to")
     parser.add_argument("--domain", type=str, default=None, help="The sub domain to use")
@@ -189,8 +198,11 @@ def main():
     target_host = args.target_host
     remote_port = args.remote_port
 
-    asyncio.run(async_main(hostport, target_port, target_host, remote_port, schema=schema, 
-                           domain=args.domain))
+    try:
+        asyncio.run(async_main(hostport, target_port, target_host, remote_port, schema=schema, 
+                               domain=args.domain))
+    except KeyboardInterrupt:
+        logger.warning('KeyboardInterrupt')
 
 if __name__ == "__main__":
     main()

@@ -55,7 +55,7 @@ class Packet:
         self.type = PacketType(data['type']) # 数据包类型
         self.data = data.get('data') # 二进制数据
         self.payload = Packet.Payload(data.get('payload', {}))
-        self.size = len(data) # 数据包大小
+        self.size = len(self.data or '') # 数据包大小
         self.connection_id = data.get('connection_id') # 连接ID
 
     def __repr__(self):
@@ -69,12 +69,14 @@ class Packet:
             'type': self.type.value,
             'data': self.data,
             'payload': {
+                'config_id': self.payload.config_id,
                 'data': self.payload.data,
                 'port': self.payload.port,
                 'remote_host': self.payload.remote_host,
                 'remote_port': self.payload.remote_port,
                 'websocket_id': self.payload.websocket_id,
-                'data_tunnel_mode': self.payload.data_tunnel_mode
+                'data_tunnel_mode': self.payload.data_tunnel_mode,
+                'domain': self.payload.domain
             },
             'connection_id': self.connection_id
         }
