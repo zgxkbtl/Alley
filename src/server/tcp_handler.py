@@ -12,9 +12,11 @@ from src.common.protocol import Packet, PacketType
 from src.common.log_config import configure_logger
 
 logger = configure_logger(__name__)
+TCP_CHUNK_SIZE = 64 * 1024
 
 # 用于存储所有活跃的TCP连接
 active_tcp_connections = {}
+active_tcp_websockets = {}
 
 
 async def close_writer(writer: asyncio.StreamWriter, name: str):
@@ -25,15 +27,18 @@ async def close_writer(writer: asyncio.StreamWriter, name: str):
     except Exception as e:
         logger.error("Error closing TCP connection for %s socket: %s", name, e)
 
+
 async def tcp_server_handler(
         client_reader: asyncio.StreamReader, 
         client_writer: asyncio.StreamWriter, 
-        websocket: websockets.WebSocketServerProtocol):
+        websocket: websockets.WebSocketServerProtocol,
+        send_lock: asyncio.Lock):
     # TODO: support multiple TCP connections: bring config_id to tcp_server_handler
 
     # 为新的TCP连接生成一个唯一的标识符
     connection_id = str(uuid.uuid4())
     active_tcp_connections[connection_id] = (client_reader, client_writer)
+    active_tcp_websockets[connection_id] = websocket
     # 通知客户端新的TCP连接已建立，包括连接ID
     response = Packet({
         "type": PacketType.NEW_CONNECTION,
@@ -42,10 +47,12 @@ async def tcp_server_handler(
             "data_tunnel_mode": 'reuse'
         }
     }).json()
-    await websocket.send(json.dumps(response))
+    async with send_lock:
+        await websocket.send(json.dumps(response))
+    failed = False
     try:
         while True:
-            data = await client_reader.read(4096)  # 读取TCP连接的数据
+            data = await client_reader.read(TCP_CHUNK_SIZE)  # 读取TCP连接的数据
             if not data:
                 break
             # 将数据通过WebSocket发送到客户端，包括连接ID
@@ -59,13 +66,18 @@ async def tcp_server_handler(
                 "data": data.hex()  # 将二进制数据编码为十六进制字符串
             }).json()
 
-            await websocket.send(json.dumps(response))
+            async with send_lock:
+                await websocket.send(json.dumps(response))
     except Exception as e:
+        failed = True
         logger.error('Remote TCP handler failed: %s', e, exc_info=True)
     finally:
-        await close_writer(client_writer, 'remote')
-        await send_tcp_close_signal(websocket, connection_id, 'TCP connection closed')
-        active_tcp_connections.pop(connection_id, None)  # 移除已关闭的连接
+        if failed:
+            await close_writer(client_writer, 'remote')
+            active_tcp_connections.pop(connection_id, None)
+            active_tcp_websockets.pop(connection_id, None)
+        else:
+            await send_tcp_close_signal(websocket, connection_id, 'TCP input closed', send_lock)
 
 async def tcp_server_response_handler(data: Packet, websocket: websockets.WebSocketServerProtocol):
     # 从WebSocket接收到TCP数据
@@ -85,14 +97,17 @@ async def tcp_server_response_handler(data: Packet, websocket: websockets.WebSoc
     await client_writer.drain()
 
 
-async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, data: Packet) -> asyncio.Server:
+async def tcp_server_listener(
+        websocket: websockets.WebSocketServerProtocol,
+        data: Packet,
+        send_lock: asyncio.Lock) -> asyncio.Server:
 
     # 开启TCP服务器监听指定端口
     host = data.payload.remote_host
     if data.type == PacketType.TCP_LISTEN:
         host = '0.0.0.0'
     tcp_server = await asyncio.start_server(
-        lambda r, w: tcp_server_handler(r, w, websocket),
+        lambda r, w: tcp_server_handler(r, w, websocket, send_lock),
         host=host,
         port=data.payload.remote_port
     )
@@ -114,12 +129,16 @@ async def tcp_server_listener(websocket: websockets.WebSocketServerProtocol, dat
             await send_notification(websocket, f'New TCP server {ip_address}:{remote_port} ---> {data.payload.port}')
     return tcp_server
 
-async def send_notification(websocket: websockets.WebSocketServerProtocol, message: str):
+async def send_notification(websocket: websockets.WebSocketServerProtocol, message: str, send_lock: asyncio.Lock | None = None):
     response = Packet({
         "type": PacketType.NEW_NOTIFICATION,
         "data": message
     }).json()
-    await websocket.send(json.dumps(response))
+    if send_lock:
+        async with send_lock:
+            await websocket.send(json.dumps(response))
+    else:
+        await websocket.send(json.dumps(response))
 
 async def terminate_tcp_connection(websocket: websockets.WebSocketServerProtocol, connection_id: str):
     if not connection_id or connection_id not in active_tcp_connections:
@@ -131,16 +150,38 @@ async def terminate_tcp_connection(websocket: websockets.WebSocketServerProtocol
         return
     await close_writer(writer, 'remote')
     active_tcp_connections.pop(connection_id, None)
-    logger.info(f"TCP connection {connection_id} closed")
+    active_tcp_websockets.pop(connection_id, None)
+    logger.debug(f"TCP connection {connection_id} closed")
     await send_notification(websocket, f'TCP connection {connection_id} closed')
 
-async def send_tcp_close_signal(websocket: websockets.WebSocketServerProtocol, connection_id: str, message: str):
+
+async def close_tcp_connections_for_websocket(websocket: websockets.WebSocketServerProtocol):
+    connection_ids = [
+        connection_id
+        for connection_id, connection_websocket in list(active_tcp_websockets.items())
+        if connection_websocket is websocket
+    ]
+    for connection_id in connection_ids:
+        _reader, writer = active_tcp_connections.pop(connection_id, (None, None))
+        active_tcp_websockets.pop(connection_id, None)
+        if isinstance(writer, asyncio.StreamWriter):
+            await close_writer(writer, 'remote')
+
+async def send_tcp_close_signal(
+        websocket: websockets.WebSocketServerProtocol,
+        connection_id: str,
+        message: str,
+        send_lock: asyncio.Lock | None = None):
     response = Packet({
         "type": PacketType.TCP_CLOSE,
         "connection_id": connection_id,
         "data": message
     }).json()
     try:
-        await websocket.send(json.dumps(response))
+        if send_lock:
+            async with send_lock:
+                await websocket.send(json.dumps(response))
+        else:
+            await websocket.send(json.dumps(response))
     except websockets.exceptions.ConnectionClosed:
         logger.info("WebSocket closed before TCP close signal could be sent: %s", connection_id)
