@@ -1,12 +1,12 @@
 import asyncio
 import json
-import websockets
 import argparse
 from src.common.log_config import configure_logger
 from src.common.protocol import Packet, PacketType
+from src.common.ws import ConnectionClosed, connect
 
 logger = configure_logger(__name__)
-websocket_listener_logger = configure_logger('websockets')
+websocket_listener_logger = configure_logger('alley.ws')
 TCP_CHUNK_SIZE = 64 * 1024
 
 active_tcp_connections = {}
@@ -26,14 +26,14 @@ async def send_tcp_close_signal(
     try:
         async with send_lock:
             await websocket.send(json.dumps(response))
-    except websockets.exceptions.ConnectionClosed:
+    except ConnectionClosed:
         logger.info("WebSocket closed before TCP close signal could be sent: %s", connection_id)
 
 async def handle_tcp_connection(
         connection_id, 
         target_host, 
         target_port, 
-        websocket: websockets.WebSocketClientProtocol,
+        websocket,
         send_lock: asyncio.Lock,
         event: asyncio.Event = None
         ):
@@ -159,7 +159,7 @@ async def async_main(hostport,
                      schema='tcp', **kwargs):
     listen_type = PacketType.TCP_LISTEN if schema == 'tcp' else PacketType.HTTP_LISTEN
     if listen_type == PacketType.HTTP_LISTEN:
-        async with websockets.connect(f"ws://{hostport}") as websocket:
+        async with connect(f"ws://{hostport}") as websocket:
             send_lock = asyncio.Lock()
             # TODO: support multiple proxy servers: using for loop with config_id
             response = Packet({
@@ -177,7 +177,7 @@ async def async_main(hostport,
             await websocket_listener(websocket, send_lock, target_host=target_host, target_port=target_port)
 
     elif listen_type == PacketType.TCP_LISTEN:
-        async with websockets.connect(f"ws://{hostport}") as websocket:
+        async with connect(f"ws://{hostport}") as websocket:
             send_lock = asyncio.Lock()
             response = Packet({
                 "type": listen_type,

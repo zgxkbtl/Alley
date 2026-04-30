@@ -6,10 +6,10 @@ SERVER_DOMAIN = os.getenv('SERVER_DOMAIN', '')
 
 import asyncio
 import json
-import websockets
 
 from src.common.protocol import Packet, PacketType
 from src.common.log_config import configure_logger
+from src.common.ws import ConnectionClosed
 
 logger = configure_logger(__name__)
 TCP_CHUNK_SIZE = 64 * 1024
@@ -31,7 +31,7 @@ async def close_writer(writer: asyncio.StreamWriter, name: str):
 async def tcp_server_handler(
         client_reader: asyncio.StreamReader, 
         client_writer: asyncio.StreamWriter, 
-        websocket: websockets.WebSocketServerProtocol,
+        websocket,
         send_lock: asyncio.Lock):
     # TODO: support multiple TCP connections: bring config_id to tcp_server_handler
 
@@ -79,7 +79,7 @@ async def tcp_server_handler(
         else:
             await send_tcp_close_signal(websocket, connection_id, 'TCP input closed', send_lock)
 
-async def tcp_server_response_handler(data: Packet, websocket: websockets.WebSocketServerProtocol):
+async def tcp_server_response_handler(data: Packet, websocket):
     # 从WebSocket接收到TCP数据
     connection_id = data.connection_id
     if connection_id not in active_tcp_connections:
@@ -98,7 +98,7 @@ async def tcp_server_response_handler(data: Packet, websocket: websockets.WebSoc
 
 
 async def tcp_server_listener(
-        websocket: websockets.WebSocketServerProtocol,
+        websocket,
         data: Packet,
         send_lock: asyncio.Lock) -> asyncio.Server:
 
@@ -129,7 +129,7 @@ async def tcp_server_listener(
             await send_notification(websocket, f'New TCP server {ip_address}:{remote_port} ---> {data.payload.port}')
     return tcp_server
 
-async def send_notification(websocket: websockets.WebSocketServerProtocol, message: str, send_lock: asyncio.Lock | None = None):
+async def send_notification(websocket, message: str, send_lock: asyncio.Lock | None = None):
     response = Packet({
         "type": PacketType.NEW_NOTIFICATION,
         "data": message
@@ -140,7 +140,7 @@ async def send_notification(websocket: websockets.WebSocketServerProtocol, messa
     else:
         await websocket.send(json.dumps(response))
 
-async def terminate_tcp_connection(websocket: websockets.WebSocketServerProtocol, connection_id: str):
+async def terminate_tcp_connection(websocket, connection_id: str):
     if not connection_id or connection_id not in active_tcp_connections:
         logger.error(f"Invalid connection ID: {connection_id}")
         return
@@ -155,7 +155,7 @@ async def terminate_tcp_connection(websocket: websockets.WebSocketServerProtocol
     await send_notification(websocket, f'TCP connection {connection_id} closed')
 
 
-async def close_tcp_connections_for_websocket(websocket: websockets.WebSocketServerProtocol):
+async def close_tcp_connections_for_websocket(websocket):
     connection_ids = [
         connection_id
         for connection_id, connection_websocket in list(active_tcp_websockets.items())
@@ -168,7 +168,7 @@ async def close_tcp_connections_for_websocket(websocket: websockets.WebSocketSer
             await close_writer(writer, 'remote')
 
 async def send_tcp_close_signal(
-        websocket: websockets.WebSocketServerProtocol,
+        websocket,
         connection_id: str,
         message: str,
         send_lock: asyncio.Lock | None = None):
@@ -183,5 +183,5 @@ async def send_tcp_close_signal(
                 await websocket.send(json.dumps(response))
         else:
             await websocket.send(json.dumps(response))
-    except websockets.exceptions.ConnectionClosed:
+    except ConnectionClosed:
         logger.info("WebSocket closed before TCP close signal could be sent: %s", connection_id)

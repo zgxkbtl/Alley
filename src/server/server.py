@@ -6,7 +6,7 @@ import asyncio
 import json
 import signal
 import uuid
-import websockets
+from src.common.ws import ConnectionClosed, serve
 from src.common.protocol import Packet, PacketType
 from src.server.tcp_handler import (
     close_tcp_connections_for_websocket,
@@ -19,7 +19,7 @@ from src.common.log_config import configure_logger
 from src.server.nginx_unit_controller import UnitUnavailable, flush_proxy_config, set_proxy_config
 
 logger = configure_logger(__name__)
-websockets_logger = configure_logger('websockets')
+websockets_logger = configure_logger('alley.ws')
 
 CONNECTIONS: dict[str, dict] = {}
 
@@ -72,7 +72,7 @@ async def handler(websocket):
                 await terminate_tcp_connection(websocket=websocket, connection_id=data.connection_id)
                 logger.debug(f'Close TCP connection {data.connection_id} for {websocket.remote_address}')
 
-    except websockets.exceptions.ConnectionClosed:
+    except ConnectionClosed:
         logger.info(f'Connection closed from {websocket.remote_address}')
     except Exception as e:
         logger.error('websocket handler error: %s', e, exc_info=True)
@@ -106,7 +106,7 @@ async def start_server(host: str, port: int):
     if os.name != 'nt':  # Not Windows
         loop.add_signal_handler(signal.SIGTERM, lambda: stop.done() or stop.set_result(None))
 
-    async with websockets.serve(handler, host, port, close_timeout=1):
+    async with serve(handler, host, port, close_timeout=1):
         logger.info('Alley server listening on %s:%s', host or '0.0.0.0', port)
         await stop
 

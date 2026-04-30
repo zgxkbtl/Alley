@@ -1,5 +1,4 @@
 import json
-import httpx
 import os
 import asyncio
 import secrets
@@ -11,7 +10,6 @@ NGINX_UNIT_CONTROL_SOCKET = '/var/run/control.unit.sock'
 SERVER_DOMAIN = os.getenv('SERVER_DOMAIN', 'localhost')
 MANAGED_PROXY_PORTS: set[int] = set()
 
-# https://www.python-httpx.org/advanced/#usage_1
 logger = configure_logger(__name__)
 
 
@@ -19,25 +17,53 @@ class UnitUnavailable(RuntimeError):
     pass
 
 
-def _transport():
+def _check_socket():
     if not os.path.exists(NGINX_UNIT_CONTROL_SOCKET):
         raise UnitUnavailable(f'nginx unit control socket not found: {NGINX_UNIT_CONTROL_SOCKET}')
-    return httpx.AsyncHTTPTransport(uds=NGINX_UNIT_CONTROL_SOCKET)
+    if not hasattr(asyncio, "open_unix_connection"):
+        raise UnitUnavailable("nginx unit control socket requires Unix domain socket support")
+
+
+async def _request(method: str, path: str, body: bytes | None = None) -> bytes:
+    _check_socket()
+    reader, writer = await asyncio.open_unix_connection(NGINX_UNIT_CONTROL_SOCKET)
+    try:
+        headers = [
+            f"{method} {path} HTTP/1.1",
+            "Host: localhost",
+            "Connection: close",
+        ]
+        if body is not None:
+            headers.extend([
+                "Content-Type: application/json",
+                f"Content-Length: {len(body)}",
+            ])
+        request = "\r\n".join(headers).encode("ascii") + b"\r\n\r\n" + (body or b"")
+        writer.write(request)
+        await writer.drain()
+        response = await reader.read()
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+    head, _, payload = response.partition(b"\r\n\r\n")
+    status_line = head.splitlines()[0].decode("ascii", errors="replace") if head else ""
+    try:
+        status = int(status_line.split()[1])
+    except (IndexError, ValueError) as e:
+        raise RuntimeError(f"invalid nginx unit response: {status_line}") from e
+    if status >= 400:
+        raise RuntimeError(f"nginx unit returned HTTP {status}: {payload.decode(errors='replace')}")
+    return payload
 
 
 async def get_config():
-    transport = _transport()
-    async with httpx.AsyncClient(transport=transport) as client:
-        response = await client.get("http://localhost/config")
-        response.raise_for_status()
-        return response.json()
+    response = await _request("GET", "/config")
+    return json.loads(response.decode("utf-8"))
 
 
 async def set_config(config: dict):
-    transport = _transport()
-    async with httpx.AsyncClient(transport=transport) as client:
-        response = await client.put("http://localhost/config", json=config)
-        response.raise_for_status()
+    await _request("PUT", "/config", json.dumps(config).encode("utf-8"))
 
 async def set_proxy_config(domain:str, port: int):
     if not domain:
